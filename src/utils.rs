@@ -130,8 +130,8 @@ pub fn generate_secret_key() -> SecretKey {
 }
 
 pub fn get_client_box(
-    host_public_key: Option<PublicKey>,
-    client_secret_key: Option<SecretKey>,
+    host_public_key: Option<&PublicKey>,
+    client_secret_key: Option<&SecretKey>,
 ) -> Result<Rc<SalsaBox>> {
     thread_local!(static CLIENT_BOX: OnceCell<Rc<SalsaBox>> = OnceCell::new());
     Ok(CLIENT_BOX.with(|cb| -> Result<_> {
@@ -142,7 +142,7 @@ pub fn get_client_box(
             let host_public_key = host_public_key.expect(
                 "get_client_box() is called before host public key is available, this shouldn't happen",
             );
-            Rc::new(SalsaBox::new(&host_public_key, &client_secret_key))
+            Rc::new(SalsaBox::new(host_public_key, client_secret_key))
         }).clone())
     })?)
 }

@@ -36,8 +36,10 @@ macro_rules! message_from_to_string {
                         msg.push_str(stringify!($field_name));
                         msg.push('=');
                         msg.push_str(value);
+                        msg.push('\n');
                     }
                 )*
+                msg.push('\n');
                 msg
             }
         }
@@ -49,6 +51,9 @@ macro_rules! message_from_to_string {
                 let pairs: Vec<_> = s.split("\n").collect();
                 let mut msg = $name { ..Default::default() };
                 for pair in pairs {
+                    if pair.len() == 0 {
+                        continue;
+                    }
                     let split_at = pair.find('=').ok_or(Self::Err {
                         message: "Equal sign not found in line".to_owned(),
                         source: s.to_owned(),

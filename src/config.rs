@@ -34,6 +34,7 @@ impl Config {
 pub struct Database {
     pub id: String,
     pub key: String,
+    pub pkey: String,
     pub group: String,
     pub group_uuid: String,
     pub only_group: bool,

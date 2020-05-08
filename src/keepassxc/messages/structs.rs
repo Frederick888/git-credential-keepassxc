@@ -243,8 +243,7 @@ pub struct AssociateResponse {
 pub struct TestAssociateRequest {
     pub action: KeePassAction,
     pub id: String,
-    #[serde(rename = "idKey")]
-    pub id_key: String,
+    pub key: String,
 }
 
 impl TestAssociateRequest {
@@ -252,7 +251,7 @@ impl TestAssociateRequest {
         Self {
             action: KeePassAction::TestAssociate,
             id: id.into(),
-            id_key: id_key.into(),
+            key: id_key.into(),
         }
     }
 }
@@ -296,9 +295,9 @@ pub struct DatabaseIdentificationKeyPair {
 pub struct GetLoginsRequest {
     action: KeePassAction,
     url: String,
-    #[serde(rename = "submitUrl")]
+    #[serde(rename = "submitUrl", skip_serializing_if = "Option::is_none")]
     submit_url: Option<String>,
-    #[serde(rename = "httpAuth")]
+    #[serde(rename = "httpAuth", skip_serializing_if = "Option::is_none")]
     http_auth: Option<KeePassBoolean>,
     keys: Vec<DatabaseIdentificationKeyPair>,
 }
@@ -336,9 +335,9 @@ pub struct LoginEntry {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetLoginsResponse {
-    count: usize,
-    entries: Vec<LoginEntry>,
-    hash: Option<String>,
+    pub count: usize,
+    pub entries: Vec<LoginEntry>,
+    pub hash: Option<String>,
     /* generic fields */
     pub version: Option<String>,
     pub id: Option<String>,
