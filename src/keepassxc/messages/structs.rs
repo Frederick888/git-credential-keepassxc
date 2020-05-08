@@ -322,8 +322,8 @@ impl GetLoginsRequest {
             keys: keys
                 .iter()
                 .map(|(id, key)| DatabaseIdentificationKeyPair {
-                    id: id.to_string(),
-                    key: key.to_string(),
+                    id: (*id).to_string(),
+                    key: (*key).to_string(),
                 })
                 .collect(),
         }
