@@ -29,5 +29,3 @@ subcommands:
             help: Name of group where new credentials are stored
             default_value: Git
             takes_value: true
-        - only-group:
-            help: Get credentials only from the group specified by --group

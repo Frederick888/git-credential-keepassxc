@@ -37,5 +37,4 @@ pub struct Database {
     pub pkey: String,
     pub group: String,
     pub group_uuid: String,
-    pub only_group: bool,
 }

@@ -121,14 +121,13 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         pkey: id_pubkey_b64,
         group: group.name,
         group_uuid: group.uuid,
-        only_group: args.is_present("only-group"),
     });
     config_file.write_to(&config_path)?;
 
     Ok(())
 }
 
-fn get_logins<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
+fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
     let config = Config::read_from(config_path.as_ref())?;
 
     // read credential request
@@ -238,7 +237,7 @@ fn real_main() -> Result<()> {
         .ok_or_else(|| anyhow!("No subcommand selected"))?;
     match subcommand {
         "configure" => configure(config_path, &args),
-        "get" => get_logins(config_path, &args),
+        "get" => get_logins(config_path),
         _ => Err(anyhow!(anyhow!("Unrecognised subcommand"))),
     }
 }
