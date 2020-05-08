@@ -330,11 +330,12 @@ impl GetLoginsRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LoginEntry {
     pub login: String,
     pub name: String,
     pub password: String,
+    pub uuid: String,
     pub expired: Option<KeePassBoolean>,
 }
 

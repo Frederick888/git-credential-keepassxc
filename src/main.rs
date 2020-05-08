@@ -44,6 +44,33 @@ fn start_session() -> Result<(String, SecretKey, PublicKey)> {
     Ok((client_id, session_seckey, host_pubkey))
 }
 
+fn read_git_request() -> Result<(GitCredentialMessage, String)> {
+    // read credential request
+    let git_req = {
+        let mut git_req_string = String::with_capacity(256);
+        io::stdin().read_to_string(&mut git_req_string)?;
+        GitCredentialMessage::from_str(&git_req_string)?
+    };
+    let url = {
+        if let Some(ref url_string) = git_req.url {
+            url_string.clone()
+        } else {
+            if git_req.protocol.is_none() || git_req.host.is_none() {
+                return Err(anyhow!(
+                    "Protocol and host are both required when URL is not provided"
+                ));
+            }
+            format!(
+                "{}://{}/{}",
+                git_req.protocol.clone().unwrap(),
+                git_req.host.clone().unwrap(),
+                git_req.path.clone().unwrap_or_else(|| "".to_owned())
+            )
+        }
+    };
+    Ok((git_req, url))
+}
+
 fn associated_databases<T: AsRef<str>>(client_id: T, config: &Config) -> Result<Vec<&Database>> {
     let databases: Vec<_> = config
         .databases
@@ -127,52 +154,33 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     Ok(())
 }
 
-fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
-    let config = Config::read_from(config_path.as_ref())?;
-
-    // read credential request
-    let git_req = {
-        let mut git_req_string = String::with_capacity(256);
-        io::stdin().read_to_string(&mut git_req_string)?;
-        GitCredentialMessage::from_str(&git_req_string)?
-    };
-    let url = {
-        if let Some(ref url_string) = git_req.url {
-            url_string.clone()
-        } else {
-            if git_req.protocol.is_none() || git_req.host.is_none() {
-                return Err(anyhow!(
-                    "Protocol and host are both required when URL is not provided"
-                ));
-            }
-            format!(
-                "{}://{}/{}",
-                git_req.protocol.clone().unwrap(),
-                git_req.host.clone().unwrap(),
-                git_req.path.clone().unwrap_or_else(|| "".to_owned())
-            )
-        }
-    };
-
-    // start session
-    let (client_id, _, _) = start_session()?;
-
-    let databases = associated_databases(&client_id, &config)?;
+fn get_logins_for<T: AsRef<str>>(config: &Config, client_id: T, url: T) -> Result<Vec<LoginEntry>> {
+    let databases = associated_databases(client_id.as_ref(), config)?;
     let id_key_pairs: Vec<_> = databases
         .iter()
         .map(|d| (d.id.as_str(), d.pkey.as_str()))
         .collect();
 
     // ask KeePassXC for logins
-    let gl_req = GetLoginsRequest::new(&url, None, None, &id_key_pairs[..]);
-    let gl_resp = gl_req.send(&client_id)?;
+    let gl_req = GetLoginsRequest::new(url.as_ref(), None, None, &id_key_pairs[..]);
+    let gl_resp = gl_req.send(client_id.as_ref())?;
 
     let login_entries: Vec<_> = gl_resp
         .entries
-        .iter()
+        .into_iter()
         .filter(|e| e.expired.is_none() || !e.expired.as_ref().unwrap().0)
         .collect();
+    Ok(login_entries)
+}
 
+fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
+    let config = Config::read_from(config_path.as_ref())?;
+    // read credential request
+    let (git_req, url) = read_git_request()?;
+    // start session
+    let (client_id, _, _) = start_session()?;
+
+    let login_entries = get_logins_for(&config, &client_id, &url)?;
     if login_entries.is_empty() {
         return Err(anyhow!("No matching logins found"));
     }
