@@ -9,20 +9,10 @@ use config::{Config, Database};
 use keepassxc::{messages::*, Group};
 use once_cell::sync::OnceCell;
 use slog::*;
-use std::fmt;
 use std::path::{Path, PathBuf};
 use utils::*;
 
 static LOGGER: OnceCell<Logger> = OnceCell::new();
-
-#[derive(Debug)]
-struct GenericError(String);
-impl fmt::Display for GenericError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-impl std::error::Error for GenericError {}
 
 fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     // generate keys for encrypting current session
@@ -48,9 +38,7 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
 
     let aso_req = AssociateRequest::new(&session_pubkey, &id_pubkey);
     let aso_resp = aso_req.send(&client_id)?;
-    let database_id = aso_resp
-        .id
-        .ok_or_else(|| GenericError("Association failed".to_owned()))?;
+    let database_id = aso_resp.id.ok_or_else(|| anyhow!("Association failed"))?;
 
     // try to create a new group even if it already exists, KeePassXC will do the deduplication
     let group_name = args
@@ -89,7 +77,7 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
 fn real_main() -> Result<()> {
     if cfg!(unix) && !cfg!(debug_assertions) {
         prctl::set_dumpable(false)
-            .or_else(|c| Err(GenericError(format!("Failed to disable dump, code: {}", c))))?;
+            .or_else(|c| Err(anyhow!("Failed to disable dump, code: {}", c)))?;
     }
 
     let yaml = clap::load_yaml!("cli.yml");
@@ -109,7 +97,7 @@ fn real_main() -> Result<()> {
     let logger = Logger::root(drain, o!());
     LOGGER
         .set(logger)
-        .map_err(|_| GenericError("Failed to initialise logger".to_owned()))?;
+        .map_err(|_| anyhow!("Failed to initialise logger"))?;
 
     let config_path = {
         if let Some(path) = args.value_of("config") {
@@ -122,10 +110,10 @@ fn real_main() -> Result<()> {
 
     let subcommand = args
         .subcommand_name()
-        .ok_or_else(|| GenericError("No subcommand selected".to_owned()))?;
+        .ok_or_else(|| anyhow!("No subcommand selected"))?;
     match subcommand {
         "configure" => configure(config_path, &args),
-        _ => Err(anyhow!(GenericError("Unrecognised subcommand".to_owned()))),
+        _ => Err(anyhow!(anyhow!("Unrecognised subcommand"))),
     }
 }
 

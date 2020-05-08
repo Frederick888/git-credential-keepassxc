@@ -52,10 +52,7 @@ where
             let response: R = serde_json::from_str(&decrypted_response_json)?;
             Ok(response)
         } else {
-            Err(anyhow!(crate::GenericError(format!(
-                "Request {} failed",
-                self.get_action().to_string()
-            ))))
+            Err(anyhow!("Request {} failed", self.get_action().to_string()))
         }
     }
 
