@@ -79,12 +79,12 @@ macro_rules! impl_cipher_text {
     };
 }
 impl_cipher_text!([
-    (GetDatabaseHashRequest, GetDatabaseHashResponse),
+    // (GetDatabaseHashRequest, GetDatabaseHashResponse),
     (AssociateRequest, AssociateResponse),
     (TestAssociateRequest, TestAssociateResponse),
     (GetLoginsRequest, GetLoginsResponse),
     (SetLoginRequest, SetLoginResponse),
-    (GetDatabaseGroupsRequest, GetDatabaseGroupsResponse),
+    // (GetDatabaseGroupsRequest, GetDatabaseGroupsResponse),
     (CreateNewGroupRequest, CreateNewGroupResponse),
 ]);
 
@@ -178,30 +178,30 @@ impl PlainTextResponse for ChangePublicKeysResponse {}
  * https://github.com/keepassxreboot/keepassxc-browser/blob/develop/keepassxc-protocol.md#get-databasehash
  */
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct GetDatabaseHashRequest {
-    pub action: KeePassAction,
-}
-
-impl GetDatabaseHashRequest {
-    pub fn new() -> Self {
-        Self {
-            action: KeePassAction::GetDatabaseHash,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct GetDatabaseHashResponse {
-    pub action: String,
-    pub hash: Option<String>,
-    /* generic fields */
-    pub version: Option<String>,
-    pub success: Option<KeePassBoolean>,
-    pub error: Option<String>,
-    #[serde(rename = "errorCode")]
-    pub error_code: Option<String>,
-}
+// #[derive(Serialize, Deserialize, Debug)]
+// pub struct GetDatabaseHashRequest {
+//     pub action: KeePassAction,
+// }
+// 
+// impl GetDatabaseHashRequest {
+//     pub fn new() -> Self {
+//         Self {
+//             action: KeePassAction::GetDatabaseHash,
+//         }
+//     }
+// }
+// 
+// #[derive(Serialize, Deserialize, Debug)]
+// pub struct GetDatabaseHashResponse {
+//     pub action: String,
+//     pub hash: Option<String>,
+//     [> generic fields <]
+//     pub version: Option<String>,
+//     pub success: Option<KeePassBoolean>,
+//     pub error: Option<String>,
+//     #[serde(rename = "errorCode")]
+//     pub error_code: Option<String>,
+// }
 
 /*
  * associate
@@ -429,44 +429,44 @@ pub struct SetLoginResponse {
  * https://github.com/keepassxreboot/keepassxc-browser/blob/develop/keepassxc-protocol.md#get-database-groups
  */
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct GetDatabaseGroupsRequest {
-    action: KeePassAction,
-}
-
-impl GetDatabaseGroupsRequest {
-    pub fn new() -> Self {
-        Self {
-            action: KeePassAction::GetDatabaseGroups,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct InnerGroups {
-    pub groups: Vec<crate::keepassxc::Group>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct GetDatabaseGroupsResponse {
-    #[serde(rename = "defaultGroup")]
-    pub default_group: Option<String>,
-    #[serde(rename = "defaultGroupAlwaysAllow")]
-    pub default_group_always_allow: Option<bool>,
-    groups: InnerGroups,
-    /* generic fields */
-    pub version: Option<String>,
-    pub success: Option<KeePassBoolean>,
-    pub error: Option<String>,
-    #[serde(rename = "errorCode")]
-    pub error_code: Option<String>,
-}
-
-impl GetDatabaseGroupsResponse {
-    pub fn get_groups(&self) -> &[crate::keepassxc::Group] {
-        &self.groups.groups
-    }
-}
+// #[derive(Serialize, Deserialize, Debug)]
+// pub struct GetDatabaseGroupsRequest {
+//     action: KeePassAction,
+// }
+// 
+// impl GetDatabaseGroupsRequest {
+//     pub fn new() -> Self {
+//         Self {
+//             action: KeePassAction::GetDatabaseGroups,
+//         }
+//     }
+// }
+// 
+// #[derive(Serialize, Deserialize, Debug)]
+// struct InnerGroups {
+//     pub groups: Vec<crate::keepassxc::Group>,
+// }
+// 
+// #[derive(Serialize, Deserialize, Debug)]
+// pub struct GetDatabaseGroupsResponse {
+//     #[serde(rename = "defaultGroup")]
+//     pub default_group: Option<String>,
+//     #[serde(rename = "defaultGroupAlwaysAllow")]
+//     pub default_group_always_allow: Option<bool>,
+//     groups: InnerGroups,
+//     [> generic fields <]
+//     pub version: Option<String>,
+//     pub success: Option<KeePassBoolean>,
+//     pub error: Option<String>,
+//     #[serde(rename = "errorCode")]
+//     pub error_code: Option<String>,
+// }
+// 
+// impl GetDatabaseGroupsResponse {
+//     pub fn get_groups(&self) -> &[crate::keepassxc::Group] {
+//         &self.groups.groups
+//     }
+// }
 
 /*
  * create-new-group

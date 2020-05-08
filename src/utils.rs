@@ -98,21 +98,21 @@ pub fn to_public_key<T: AsRef<str>>(public_key_b64: T) -> Result<PublicKey> {
     Ok(PublicKey::from(public_key))
 }
 
-pub fn to_secret_key<T: AsRef<str>>(secret_key_b64: T) -> Result<SecretKey> {
-    let secret_key = base64::decode(secret_key_b64.as_ref())?;
-    if secret_key.len() != crypto_box::KEY_SIZE {
-        return Err(Error::from(InvalidKeyError(
-            "client secret".to_owned(),
-            secret_key.len(),
-        )));
-    }
-    let secret_key = {
-        let mut bytes = [0u8; crypto_box::KEY_SIZE];
-        bytes.copy_from_slice(&secret_key[..KEY_SIZE]);
-        bytes
-    };
-    Ok(SecretKey::from(secret_key))
-}
+// pub fn to_secret_key<T: AsRef<str>>(secret_key_b64: T) -> Result<SecretKey> {
+//     let secret_key = base64::decode(secret_key_b64.as_ref())?;
+//     if secret_key.len() != crypto_box::KEY_SIZE {
+//         return Err(Error::from(InvalidKeyError(
+//             "client secret".to_owned(),
+//             secret_key.len(),
+//         )));
+//     }
+//     let secret_key = {
+//         let mut bytes = [0u8; crypto_box::KEY_SIZE];
+//         bytes.copy_from_slice(&secret_key[..KEY_SIZE]);
+//         bytes
+//     };
+//     Ok(SecretKey::from(secret_key))
+// }
 
 fn get_rng() -> Rc<RefCell<ThreadRng>> {
     thread_local! {
