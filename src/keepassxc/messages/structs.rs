@@ -1,8 +1,9 @@
 use super::primitives::*;
 use crate::utils::*;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use crypto_box::PublicKey;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use slog::{info, warn};
 
 pub trait PlainTextRequest<R>
 where
@@ -10,11 +11,18 @@ where
     Self: Serialize,
 {
     fn send(&self) -> Result<R> {
+        info!(
+            crate::LOGGER.get().unwrap(),
+            "Sending {} request",
+            self.get_action().to_string()
+        );
         let request_json = serde_json::to_string(self)?;
         let response_json = exchange_message(request_json)?;
         let response: R = serde_json::from_str(&response_json)?;
         Ok(response)
     }
+
+    fn get_action(&self) -> KeePassAction;
 }
 pub trait PlainTextResponse {}
 pub trait CipherTextRequest<R>
@@ -34,10 +42,21 @@ where
         let response_wrapper_json = exchange_message(serde_json::to_string(&request_wrapper)?)?;
         let response_wrapper: GenericResponseWrapper =
             serde_json::from_str(&response_wrapper_json)?;
-        let decrypted_response_json =
-            to_decrypted_json(response_wrapper.message, response_wrapper.nonce)?;
-        let response: R = serde_json::from_str(&decrypted_response_json)?;
-        Ok(response)
+        response_wrapper.log();
+        if response_wrapper.message.is_some() && response_wrapper.nonce.is_some() {
+            let (message, nonce) = (
+                response_wrapper.message.unwrap(),
+                response_wrapper.nonce.unwrap(),
+            );
+            let decrypted_response_json = to_decrypted_json(message, nonce)?;
+            let response: R = serde_json::from_str(&decrypted_response_json)?;
+            Ok(response)
+        } else {
+            Err(anyhow!(crate::GenericError(format!(
+                "Request {} failed",
+                self.get_action().to_string()
+            ))))
+        }
     }
 
     fn get_action(&self) -> KeePassAction;
@@ -79,8 +98,25 @@ pub struct GenericRequestWrapper {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GenericResponseWrapper {
     pub action: KeePassAction,
-    pub message: String,
-    pub nonce: String,
+    pub message: Option<String>,
+    pub nonce: Option<String>,
+    pub error: Option<String>,
+    #[serde(rename = "errorCode")]
+    pub error_code: Option<String>,
+}
+
+impl GenericResponseWrapper {
+    fn log(&self) {
+        if self.message.is_none() {
+            warn!(
+                crate::LOGGER.get().unwrap(),
+                "Request {} failed. Error: {}, Error Code: {}",
+                self.action.to_string(),
+                self.error.clone().unwrap_or_else(|| "N/A".to_owned()),
+                self.error_code.clone().unwrap_or_else(|| "N/A".to_owned())
+            );
+        }
+    }
 }
 
 /*
@@ -111,7 +147,11 @@ impl ChangePublicKeysRequest {
     }
 }
 
-impl PlainTextRequest<ChangePublicKeysResponse> for ChangePublicKeysRequest {}
+impl PlainTextRequest<ChangePublicKeysResponse> for ChangePublicKeysRequest {
+    fn get_action(&self) -> KeePassAction {
+        self.action.clone()
+    }
+}
 
 #[derive(Deserialize, Debug)]
 pub struct ChangePublicKeysResponse {

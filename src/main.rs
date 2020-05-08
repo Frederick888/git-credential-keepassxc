@@ -7,15 +7,19 @@ use anyhow::{anyhow, Result};
 use clap::{App, ArgMatches};
 use config::{Config, Database};
 use keepassxc::{messages::*, Group};
+use once_cell::sync::OnceCell;
+use slog::*;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use utils::*;
+
+static LOGGER: OnceCell<Logger> = OnceCell::new();
 
 #[derive(Debug)]
 struct GenericError(String);
 impl fmt::Display for GenericError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Error: {}", self.0)
+        write!(f, "{}", self.0)
     }
 }
 impl std::error::Error for GenericError {}
@@ -65,7 +69,8 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     };
 
     // save new config
-    eprintln!(
+    info!(
+        LOGGER.get().unwrap(),
         "Saving configuration to {}",
         config_path.as_ref().to_string_lossy()
     );
@@ -81,7 +86,7 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn real_main() -> Result<()> {
     if cfg!(unix) && !cfg!(debug_assertions) {
         prctl::set_dumpable(false)
             .or_else(|c| Err(GenericError(format!("Failed to disable dump, code: {}", c))))?;
@@ -92,6 +97,19 @@ fn main() -> Result<()> {
         .author(clap::crate_authors!(", "))
         .version(clap::crate_version!())
         .get_matches();
+
+    let level =
+        Level::from_usize(args.occurrences_of("verbose") as usize + 2).unwrap_or(Level::Error);
+    let decorator = slog_term::TermDecorator::new().build();
+    let drain = slog_term::FullFormat::new(decorator)
+        .build()
+        .filter_level(level)
+        .fuse();
+    let drain = std::sync::Mutex::new(drain).fuse();
+    let logger = Logger::root(drain, o!());
+    LOGGER
+        .set(logger)
+        .map_err(|_| GenericError("Failed to initialise logger".to_owned()))?;
 
     let config_path = {
         if let Some(path) = args.value_of("config") {
@@ -108,5 +126,19 @@ fn main() -> Result<()> {
     match subcommand {
         "configure" => configure(config_path, &args),
         _ => Err(anyhow!(GenericError("Unrecognised subcommand".to_owned()))),
+    }
+}
+
+fn main() {
+    if let Err(ref e) = real_main() {
+        error!(
+            crate::LOGGER.get().unwrap(),
+            "{}, Caused by: {}, Message: {}",
+            e.root_cause(),
+            e.source()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "N/A".to_string()),
+            e
+        );
     }
 }

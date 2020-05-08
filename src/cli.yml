@@ -14,14 +14,14 @@ args:
   - verbose:
       short: v
       multiple: true
-      help: "Sets the level of verbosity (0: ERROR, 1: WARNING, 2: DEBUG)"
+      help: "Sets the level of verbosity (-v: WARNING; -vv: INFO; -vvv: DEBUG)"
 subcommands:
   - get:
-      about: Get credential
+      about: Get credential (used by Git)
   - store:
-      about: Store credential
+      about: Store credential (used by Git)
   - erase:
-      about: Erase credential
+      about: Erase credential (used by Git)
   - configure:
       about: Associate git-credential-keepassxc with KeePassXC and configure preferences
       args:

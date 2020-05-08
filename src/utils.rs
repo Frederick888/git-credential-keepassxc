@@ -6,6 +6,7 @@ use crypto_box::{
 };
 use once_cell::unsync::OnceCell;
 use rand::rngs::ThreadRng;
+use slog::debug;
 use std::cell::RefCell;
 use std::fmt;
 use std::io::{Read, Write};
@@ -63,7 +64,7 @@ fn get_stream() -> Result<Rc<RefCell<UnixStream>>> {
 }
 
 pub fn exchange_message(request: String) -> Result<String> {
-    eprintln!("SEND: {}", request);
+    debug!(crate::LOGGER.get().unwrap(), "SEND: {}", request);
     let mut stream = get_stream()?.borrow().try_clone()?;
     stream.write_all(request.as_bytes())?;
     stream.write_all(b"\n")?;
@@ -77,7 +78,7 @@ pub fn exchange_message(request: String) -> Result<String> {
             break;
         }
     }
-    eprintln!("RECV: {}", response);
+    debug!(crate::LOGGER.get().unwrap(), "RECV: {}", response);
     Ok(response)
 }
 
@@ -157,7 +158,7 @@ pub fn generate_nonce() -> (NonceType, String) {
 
 pub fn to_encrypted_json<M: serde::Serialize>(request: &M, nonce: &NonceType) -> Result<String> {
     let json = serde_json::to_string(request)?;
-    eprintln!("ENC : {}", json);
+    debug!(crate::LOGGER.get().unwrap(), "ENC : {}", json);
     let client_box = get_client_box(None, None)?;
     let encrypted = client_box
         .encrypt(&nonce, json.as_bytes())
@@ -176,6 +177,6 @@ pub fn to_decrypted_json<T: AsRef<str>>(encrypted_b64: T, nonce: T) -> Result<St
         )
         .map_err(|_| CryptionError(false))?;
     let json = String::from_utf8(decrypted_json)?;
-    eprintln!("DEC : {}", json);
+    debug!(crate::LOGGER.get().unwrap(), "DEC : {}", json);
     Ok(json)
 }

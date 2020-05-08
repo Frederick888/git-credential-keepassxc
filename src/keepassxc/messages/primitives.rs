@@ -45,6 +45,15 @@ macro_rules! define_action {
         pub enum KeePassAction {
             $($variant,)*
         }
+
+        impl ToString for KeePassAction {
+            fn to_string(&self) -> String {
+                match *self {
+                    $(Self::$variant => $string.to_owned(),)*
+                }
+            }
+        }
+
         impl Serialize for KeePassAction {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
