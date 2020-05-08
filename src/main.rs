@@ -235,6 +235,15 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
             );
         }
         let login_entry = login_entries.first().unwrap();
+
+        if &login_entry.login == git_req.username.as_ref().unwrap()
+            && &login_entry.password == git_req.password.as_ref().unwrap()
+        {
+            // KeePassXC treats this as error, and Git sometimes does this as the operation should
+            // be idempotent
+            return Ok(());
+        }
+
         if config.databases.len() > 1 {
             // how do I know which database it's from?
             error!(LOGGER.get().unwrap(), "Trying to update an existing login when multiple databases are configured, this is not implemented yet");
