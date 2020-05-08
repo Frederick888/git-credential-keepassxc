@@ -3,6 +3,12 @@ name = "git-credential-keepassxc"
 version = "0.1.0"
 authors = ["Frederick Zhang <frederick888@tsundere.moe>"]
 edition = "2018"
+description = "Helper that allows Git to use KeePassXC as credential store"
+license-file = "LICENSE"
+homepage = "https://github.com/Frederick888/git-credential-keepassxc"
+repository = "https://github.com/Frederick888/git-credential-keepassxc"
+keywords = ["git", "keepass", "keepassxc", "command-line"]
+categories = ["command-line-utilities", "authentication", "development-tools"]
 
 [dependencies]
 serde = { version = "1.0.106", features = ["derive"] }
