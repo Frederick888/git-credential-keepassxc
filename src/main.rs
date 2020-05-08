@@ -339,6 +339,13 @@ fn real_main() -> Result<()> {
         "configure" => configure(config_path, &args),
         "get" => get_logins(config_path),
         "store" => store_login(config_path),
+        "erase" => {
+            error!(
+                LOGGER.get().unwrap(),
+                "KeePassXC doesn't allow erasing logins via socket at the time of writing"
+            );
+            unimplemented!();
+        }
         _ => Err(anyhow!(anyhow!("Unrecognised subcommand"))),
     }
 }
