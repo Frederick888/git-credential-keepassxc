@@ -69,6 +69,11 @@ fn associated_databases<T: AsRef<str>>(client_id: T, config: &Config) -> Result<
             "No valid database associations found in configuration file"
         ))
     } else {
+        info!(
+            LOGGER.get().unwrap(),
+            "Successfully authenticated against {} database(s)",
+            databases.len()
+        );
         Ok(databases)
     }
 }
@@ -172,6 +177,11 @@ fn get_logins<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     if login_entries.is_empty() {
         return Err(anyhow!("No matching logins found"));
     }
+    info!(
+        LOGGER.get().unwrap(),
+        "KeePassXC return {} login(s)",
+        login_entries.len()
+    );
     if login_entries.len() > 1 {
         warn!(
             LOGGER.get().unwrap(),

@@ -31,6 +31,11 @@ where
     Self: Serialize,
 {
     fn send<T: Into<String>>(&self, client_id: T) -> Result<R> {
+        info!(
+            crate::LOGGER.get().unwrap(),
+            "Sending {} request",
+            self.get_action().to_string()
+        );
         let (nonce, nonce_64) = generate_nonce();
         let encrypted_request_json = to_encrypted_json(&self, &nonce)?;
         let request_wrapper = GenericRequestWrapper {
