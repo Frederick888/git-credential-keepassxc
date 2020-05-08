@@ -306,8 +306,8 @@ fn real_main() -> Result<()> {
 
     let yaml = clap::load_yaml!("cli.yml");
     let args = App::from_yaml(yaml)
-        .author(clap::crate_authors!(", "))
-        .version(clap::crate_version!())
+        .author(env!("CARGO_PKG_AUTHORS"))
+        .version(env!("CARGO_PKG_VERSION"))
         .get_matches();
 
     let level =
