@@ -21,7 +21,7 @@ subcommands:
   - store:
       about: Store credential (used by Git)
   - erase:
-      about: Erase credential (used by Git)
+      about: "[Not implemented] Erase credential (used by Git)"
   - configure:
       about: Associate git-credential-keepassxc with KeePassXC and configure preferences
       args:
