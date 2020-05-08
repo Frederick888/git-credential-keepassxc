@@ -12,7 +12,7 @@ base64 = "0.12.0"
 rand = "0.7.3"
 xdg = "2.2.0"
 prctl = "1.0.0"
-clap = "2.33.0"
+clap = { version = "2.33.0", features = ["yaml"] }
 slog = "2.5.2"
 slog-term = "2.5.0"
 anyhow = "1.0.28"

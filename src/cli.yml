@@ -1,0 +1,33 @@
+name: git-credential-keepassxc
+about: Middleware that allows Git to use KeePassXC as credential store
+args:
+  - config:
+      short: c
+      value_name: FILE
+      help: Specify configuration JSON file path
+      takes_value: true
+  - socket:
+      short: s
+      value_name: FILE
+      help: Specify KeePassXC socket path
+      takes_value: true
+  - verbose:
+      short: v
+      multiple: true
+      help: "Sets the level of verbosity (0: ERROR, 1: WARNING, 2: DEBUG)"
+subcommands:
+  - get:
+      about: Get credential
+  - store:
+      about: Store credential
+  - erase:
+      about: Erase credential
+  - configure:
+      about: Associate git-credential-keepassxc with KeePassXC and configure preferences
+      args:
+        - group:
+            help: Name of group where new credentials are stored
+            default_value: Git
+            takes_value: true
+        - only-group:
+            help: Get credentials only from the group specified by --group

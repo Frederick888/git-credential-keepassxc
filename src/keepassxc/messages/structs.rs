@@ -372,25 +372,29 @@ impl GetDatabaseGroupsRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct DatabaseGroup {
-    name: String,
-    uuid: String,
-    children: Vec<DatabaseGroup>,
+struct InnerGroups {
+    pub groups: Vec<crate::keepassxc::Group>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetDatabaseGroupsResponse {
     #[serde(rename = "defaultGroup")]
-    default_group: String,
+    pub default_group: Option<String>,
     #[serde(rename = "defaultGroupAlwaysAllow")]
-    default_group_always_allow: bool,
-    group: Vec<DatabaseGroup>,
+    pub default_group_always_allow: Option<bool>,
+    groups: InnerGroups,
     /* generic fields */
     pub version: Option<String>,
     pub success: Option<KeePassBoolean>,
     pub error: Option<String>,
     #[serde(rename = "errorCode")]
     pub error_code: Option<String>,
+}
+
+impl GetDatabaseGroupsResponse {
+    pub fn get_groups(&self) -> &[crate::keepassxc::Group] {
+        &self.groups.groups
+    }
 }
 
 /*
@@ -416,8 +420,8 @@ impl CreateNewGroupRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CreateNewGroupResponse {
-    name: String,
-    uuid: String,
+    pub name: String,
+    pub uuid: String,
     /* generic fields */
     pub version: Option<String>,
     pub id: Option<String>,
