@@ -369,10 +369,39 @@ pub struct SetLoginRequest {
     pub nonce: String,
     pub login: String,
     pub password: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
-    #[serde(rename = "groupUuid")]
+    #[serde(rename = "groupUuid", skip_serializing_if = "Option::is_none")]
     pub group_uuid: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub uuid: Option<String>,
+}
+
+impl SetLoginRequest {
+    pub fn new<T: Into<String>>(
+        url: T,
+        submit_url: T,
+        id: T,
+        login: T,
+        password: T,
+        group: Option<T>,
+        group_uuid: Option<T>,
+        uuid: Option<T>,
+    ) -> Self {
+        let (_, nonce) = generate_nonce();
+        Self {
+            action: KeePassAction::SetLogin,
+            url: url.into(),
+            submit_url: submit_url.into(),
+            id: id.into(),
+            nonce,
+            login: login.into(),
+            password: password.into(),
+            group: group.map(|v| v.into()),
+            group_uuid: group_uuid.map(|v| v.into()),
+            uuid: uuid.map(|v| v.into()),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

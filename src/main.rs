@@ -206,6 +206,98 @@ fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
     Ok(())
 }
 
+fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
+    let config = Config::read_from(config_path.as_ref())?;
+    // read credential request
+    let (git_req, url) = read_git_request()?;
+    // start session
+    let (client_id, _, _) = start_session()?;
+
+    if git_req.username.is_none() {
+        return Err(anyhow!("Username is missing"));
+    }
+    if git_req.password.is_none() {
+        return Err(anyhow!("Password is missing"));
+    }
+
+    let login_entries = get_logins_for(&config, &client_id, &url);
+
+    let sl_req = if let Ok(login_entries) = login_entries {
+        if login_entries.len() == 1 {
+            warn!(
+                LOGGER.get().unwrap(),
+                "Existing login found, gonna update the entry"
+            );
+        } else {
+            warn!(
+                LOGGER.get().unwrap(),
+                "More than 1 existing logins found, gonna update the first entry"
+            );
+        }
+        let login_entry = login_entries.first().unwrap();
+        if config.databases.len() > 1 {
+            // how do I know which database it's from?
+            error!(LOGGER.get().unwrap(), "Trying to update an existing login when multiple databases are configured, this is not implemented yet");
+            unimplemented!();
+        }
+        let database = config.databases.first().unwrap();
+        SetLoginRequest::new(
+            &url,
+            &url,
+            &database.id,
+            &git_req.username.unwrap(),
+            &git_req.password.unwrap(),
+            Some(&database.group),
+            Some(&database.group_uuid), // KeePassXC won't move the existing entry though
+            Some(&login_entry.uuid),
+        )
+    } else {
+        info!(
+            LOGGER.get().unwrap(),
+            "No existing logins found, gonna create a new one"
+        );
+        if config.databases.len() > 1 {
+            warn!(
+                LOGGER.get().unwrap(),
+                "More than 1 databases configured, gonna save the new login in the first database"
+            );
+        }
+        let database = config.databases.first().unwrap();
+        SetLoginRequest::new(
+            &url,
+            &url,
+            &database.id,
+            &git_req.username.unwrap(),
+            &git_req.password.unwrap(),
+            Some(&database.group),
+            Some(&database.group_uuid),
+            None,
+        )
+    };
+    let sl_resp = sl_req.send(&client_id)?;
+    if let Some(success) = sl_resp.success {
+        // wtf?!?!
+        if success.0
+            && (sl_resp.error.is_none()
+                || sl_resp.error.as_ref().unwrap().is_empty()
+                || sl_resp.error.as_ref().unwrap() == "success")
+        {
+            Ok(())
+        } else {
+            error!(
+                LOGGER.get().unwrap(),
+                "Failed to store login. Error: {}, Error Code: {}",
+                sl_resp.error.unwrap_or_else(|| "N/A".to_owned()),
+                sl_resp.error_code.unwrap_or_else(|| "N/A".to_owned())
+            );
+            Err(anyhow!("Failed to store login"))
+        }
+    } else {
+        error!(LOGGER.get().unwrap(), "Set login request failed");
+        Err(anyhow!("Set login request failed"))
+    }
+}
+
 fn real_main() -> Result<()> {
     if cfg!(unix) && !cfg!(debug_assertions) {
         prctl::set_dumpable(false)
@@ -246,6 +338,7 @@ fn real_main() -> Result<()> {
     match subcommand {
         "configure" => configure(config_path, &args),
         "get" => get_logins(config_path),
+        "store" => store_login(config_path),
         _ => Err(anyhow!(anyhow!("Unrecognised subcommand"))),
     }
 }
