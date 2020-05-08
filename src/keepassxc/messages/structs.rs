@@ -36,12 +36,12 @@ where
             "Sending {} request",
             self.get_action().to_string()
         );
-        let (nonce, nonce_64) = generate_nonce();
+        let (nonce, nonce_b64) = generate_nonce();
         let encrypted_request_json = to_encrypted_json(&self, &nonce)?;
         let request_wrapper = GenericRequestWrapper {
             action: self.get_action(),
             message: encrypted_request_json,
-            nonce: nonce_64,
+            nonce: nonce_b64,
             client_id: client_id.into(),
         };
         let response_wrapper_json = exchange_message(serde_json::to_string(&request_wrapper)?)?;
