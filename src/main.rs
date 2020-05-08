@@ -307,6 +307,18 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
     }
 }
 
+fn erase_login() -> Result<()> {
+    // Don't treat this as error as when server rejects a login Git may try to erase it. This is
+    // not desirable since sometimes it's merely a configuration issue, e.g. a lot of Git servers
+    // reject logins over HTTP(S) when SSH keys have been uploaded
+    warn!(
+        LOGGER.get().unwrap(),
+        "KeePassXC doesn't allow erasing logins via socket at the time of writing"
+    );
+    let _ = read_git_request();
+    Ok(())
+}
+
 fn real_main() -> Result<()> {
     if cfg!(unix) && !cfg!(debug_assertions) {
         prctl::set_dumpable(false)
@@ -348,13 +360,7 @@ fn real_main() -> Result<()> {
         "configure" => configure(config_path, &args),
         "get" => get_logins(config_path),
         "store" => store_login(config_path),
-        "erase" => {
-            error!(
-                LOGGER.get().unwrap(),
-                "KeePassXC doesn't allow erasing logins via socket at the time of writing"
-            );
-            unimplemented!();
-        }
+        "erase" => erase_login(),
         _ => Err(anyhow!(anyhow!("Unrecognised subcommand"))),
     }
 }
