@@ -352,6 +352,12 @@ fn real_main() -> Result<()> {
             xdg.place_config_file(clap::crate_name!())?
         }
     };
+    if let Some(path) = args.value_of("socket") {
+        let path = PathBuf::from(path);
+        utils::SOCKET_PATH.with(|s| {
+            s.set(path).expect("Failed to set socket path, bug?");
+        });
+    };
 
     let subcommand = args
         .subcommand_name()

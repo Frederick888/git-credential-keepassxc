@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use anyhow::{anyhow, Error, Result};
 use crypto_box::{
     self,
     aead::{generic_array, Aead},
@@ -25,12 +25,20 @@ impl fmt::Display for SocketPathError {
     }
 }
 impl std::error::Error for SocketPathError {}
-pub fn get_socket_path() -> Result<PathBuf, SocketPathError> {
-    let xdg_dirs = xdg::BaseDirectories::new().unwrap();
-    xdg_dirs
-        .find_runtime_file(KEEPASS_SOCKET_NAME)
-        .ok_or(SocketPathError {})
+
+thread_local!(pub static SOCKET_PATH: OnceCell<PathBuf> = OnceCell::new());
+pub fn get_socket_path() -> Result<PathBuf> {
+    SOCKET_PATH.with(|s| -> Result<_> {
+        Ok(s.get_or_try_init(|| -> Result<_> {
+            let xdg_dirs = xdg::BaseDirectories::new().unwrap();
+            xdg_dirs
+                .find_runtime_file(KEEPASS_SOCKET_NAME)
+                .ok_or(anyhow!(SocketPathError {}))
+        })?
+        .clone())
+    })
 }
+
 #[derive(Debug)]
 pub struct InvalidKeyError(String, usize);
 impl fmt::Display for InvalidKeyError {
