@@ -25,7 +25,7 @@ impl Config {
     }
 
     pub fn write_to<T: AsRef<Path>>(&self, config_path: T) -> Result<()> {
-        let json = serde_json::to_string(self)?;
+        let json = serde_json::to_string_pretty(self)?;
         let mut file = fs::File::create(config_path.as_ref())?;
         file.write_all(&json.as_bytes())?;
         Ok(())
