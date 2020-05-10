@@ -30,11 +30,11 @@ A group (by default `Git`) will be created to store new logins.
 
 ```sh
 # don't forget to add yourself first
-$ git-credential-keepassxc callers add --uid "$(id -u)" --gid "$(id -g)" "$(readlink -f "$0")"
+$ git-credential-keepassxc caller add --uid "$(id -u)" --gid "$(id -g)" "$(readlink -f "$0")"
 # then allow Git to access KeePassXC when sending emails via SMTP
-$ git-credential-keepassxc callers add --uid "$(id -u)" --gid "$(id -g)" "$(command -v git)"
+$ git-credential-keepassxc caller add --uid "$(id -u)" --gid "$(id -g)" "$(command -v git)"
 # also add other Git executables if you want to e.g. clone via HTTPS
-$ git-credential-keepassxc callers add --uid "$(id -u)" --gid "$(id -g)" /usr/lib/git-core/git-remote-http
+$ git-credential-keepassxc caller add --uid "$(id -u)" --gid "$(id -g)" /usr/lib/git-core/git-remote-http
 
 $ sh -c 'printf "url=https://example.com\nusername=foo\n" | git-credential-keepassxc get'
 May 10 12:51:56.108 ERRO You are not allowed to use this program, Caused by: N/A, Message: You are not allowed to use this program
@@ -43,7 +43,7 @@ May 10 12:52:53.995 WARN Request get-logins failed. Error: No logins found, Erro
 May 10 12:52:53.995 ERRO Request get-logins failed, Caused by: N/A, Message: Request get-logins failed
 
 # disable this function
-$ git-credential-keepassxc callers clear
+$ git-credential-keepassxc caller clear
 ```
 
 ## Tip
