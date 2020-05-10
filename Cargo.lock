@@ -270,7 +270,7 @@ dependencies = [
 
 [[package]]
 name = "git-credential-keepassxc"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "base64 0.12.0",
