@@ -463,6 +463,7 @@ fn real_main() -> Result<()> {
     let subcommand = args
         .subcommand_name()
         .ok_or_else(|| anyhow!("No subcommand selected"))?;
+    debug!(LOGGER.get().unwrap(), "Subcommand: {}", subcommand);
     match subcommand {
         "configure" => configure(config_path, &args),
         "caller" => caller(config_path, &args),
