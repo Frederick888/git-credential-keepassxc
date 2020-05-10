@@ -4,6 +4,7 @@ use anyhow::{anyhow, Result};
 use crypto_box::PublicKey;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use slog::{info, warn};
+use std::collections::HashMap;
 
 pub trait PlainTextRequest<R>
 where
@@ -182,7 +183,7 @@ impl PlainTextResponse for ChangePublicKeysResponse {}
 // pub struct GetDatabaseHashRequest {
 //     pub action: KeePassAction,
 // }
-// 
+//
 // impl GetDatabaseHashRequest {
 //     pub fn new() -> Self {
 //         Self {
@@ -190,7 +191,7 @@ impl PlainTextResponse for ChangePublicKeysResponse {}
 //         }
 //     }
 // }
-// 
+//
 // #[derive(Serialize, Deserialize, Debug)]
 // pub struct GetDatabaseHashResponse {
 //     pub action: String,
@@ -336,6 +337,8 @@ pub struct LoginEntry {
     pub name: String,
     pub password: String,
     pub uuid: String,
+    #[serde(rename = "stringFields")]
+    pub string_fields: Option<Vec<HashMap<String, String>>>,
     pub expired: Option<KeePassBoolean>,
 }
 
@@ -433,7 +436,7 @@ pub struct SetLoginResponse {
 // pub struct GetDatabaseGroupsRequest {
 //     action: KeePassAction,
 // }
-// 
+//
 // impl GetDatabaseGroupsRequest {
 //     pub fn new() -> Self {
 //         Self {
@@ -441,12 +444,12 @@ pub struct SetLoginResponse {
 //         }
 //     }
 // }
-// 
+//
 // #[derive(Serialize, Deserialize, Debug)]
 // struct InnerGroups {
 //     pub groups: Vec<crate::keepassxc::Group>,
 // }
-// 
+//
 // #[derive(Serialize, Deserialize, Debug)]
 // pub struct GetDatabaseGroupsResponse {
 //     #[serde(rename = "defaultGroup")]
@@ -461,7 +464,7 @@ pub struct SetLoginResponse {
 //     #[serde(rename = "errorCode")]
 //     pub error_code: Option<String>,
 // }
-// 
+//
 // impl GetDatabaseGroupsResponse {
 //     pub fn get_groups(&self) -> &[crate::keepassxc::Group] {
 //         &self.groups.groups

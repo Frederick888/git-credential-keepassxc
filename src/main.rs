@@ -256,6 +256,31 @@ fn get_logins_for<T: AsRef<str>>(config: &Config, client_id: T, url: T) -> Resul
     Ok(login_entries)
 }
 
+fn filter_kph_logins(login_entries: &[LoginEntry]) -> (u32, Vec<&LoginEntry>) {
+    let mut kph_false = 0u32;
+    let login_entries: Vec<&LoginEntry> = login_entries
+        .iter()
+        .filter(|entry| {
+            if let Some(ref string_fields) = entry.string_fields {
+                let kph_false_fields = string_fields.iter().find(|m| {
+                    if let Some(v) = m.get("KPH: git") {
+                        v == "false"
+                    } else {
+                        false
+                    }
+                });
+                if kph_false_fields.is_some() {
+                    kph_false += 1;
+                }
+                kph_false_fields.is_none()
+            } else {
+                true
+            }
+        })
+        .collect();
+    (kph_false, login_entries)
+}
+
 fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
     let config = Config::read_from(config_path.as_ref())?;
     verify_caller(&config)?;
@@ -265,14 +290,21 @@ fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
     let (client_id, _, _) = start_session()?;
 
     let login_entries = get_logins_for(&config, &client_id, &url)?;
-    if login_entries.is_empty() {
-        return Err(anyhow!("No matching logins found"));
-    }
     info!(
         LOGGER.get().unwrap(),
         "KeePassXC return {} login(s)",
         login_entries.len()
     );
+    let (kph_false, login_entries) = filter_kph_logins(&login_entries);
+    if kph_false > 0 {
+        info!(
+            LOGGER.get().unwrap(),
+            "{} login(s) were labeled as KPH: git == false", kph_false
+        );
+    }
+    if login_entries.is_empty() {
+        return Err(anyhow!("No matching logins found"));
+    }
     if login_entries.len() > 1 {
         warn!(
             LOGGER.get().unwrap(),
@@ -305,7 +337,19 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
         return Err(anyhow!("Password is missing"));
     }
 
-    let login_entries = get_logins_for(&config, &client_id, &url);
+    let login_entries = get_logins_for(&config, &client_id, &url).and_then(|entries| {
+        let (kph_false, entries) = filter_kph_logins(&entries);
+        let entries: Vec<_> = entries.into_iter().cloned().collect();
+        if entries.is_empty() {
+            // this Err is never used
+            Err(anyhow!(
+                "No remaining logins after filtering out {} KPH: git == false one(s)",
+                kph_false
+            ))
+        } else {
+            Ok(entries)
+        }
+    });
 
     let sl_req = if let Ok(login_entries) = login_entries {
         if login_entries.len() == 1 {
