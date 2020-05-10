@@ -5,7 +5,7 @@ mod utils;
 
 use anyhow::{anyhow, Result};
 use clap::{App, ArgMatches};
-use config::{Config, Database};
+use config::{Caller, Config, Database};
 use crypto_box::{PublicKey, SecretKey};
 use git::GitCredentialMessage;
 use keepassxc::{messages::*, Group};
@@ -14,6 +14,7 @@ use slog::*;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use sysinfo::{get_current_pid, ProcessExt, System, SystemExt};
 use utils::*;
 
 static LOGGER: OnceCell<Logger> = OnceCell::new();
@@ -131,6 +132,7 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
 
     // read existing or create new config
     let mut config_file = if let Ok(config_file) = Config::read_from(&config_path) {
+        verify_caller(&config_file)?;
         config_file
     } else {
         Config::new()
@@ -154,6 +156,87 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     Ok(())
 }
 
+fn caller<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
+    // read existing or create new config
+    let mut config_file = if let Ok(config_file) = Config::read_from(&config_path) {
+        verify_caller(&config_file)?;
+        config_file
+    } else {
+        Config::new()
+    };
+
+    let subcommand = args.subcommand_matches("caller").unwrap();
+    match subcommand.subcommand() {
+        ("add", Some(add_args)) => {
+            let path = add_args
+                .value_of("PATH")
+                .ok_or_else(|| anyhow!("Must specify path"))?;
+            let caller = Caller {
+                path: path.to_owned(),
+                uid: if let Some(id) = add_args.value_of("uid") {
+                    Some(u32::from_str(id).map_err(|_| anyhow!("Invalid UID"))?)
+                } else {
+                    None
+                },
+                gid: if let Some(id) = add_args.value_of("gid") {
+                    Some(u32::from_str(id).map_err(|_| anyhow!("Invalid GID"))?)
+                } else {
+                    None
+                },
+            };
+            if config_file.callers.is_none() {
+                config_file.callers = Some(Vec::new());
+            }
+            let callers = config_file.callers.as_mut().unwrap();
+            callers.push(caller);
+            config_file.write_to(config_path)
+        }
+        ("clear", _) => {
+            config_file.callers = None;
+            config_file.write_to(config_path)
+        }
+        _ => Err(anyhow!("No subcommand selected")),
+    }
+}
+
+fn verify_caller(config: &Config) -> Result<()> {
+    if let Some(ref callers) = config.callers {
+        if callers.is_empty() {
+            return Ok(());
+        }
+        let pid =
+            get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;
+        debug!(LOGGER.get().unwrap(), "PID: {}", pid);
+        let system = System::new_all();
+        let proc = system
+            .get_process(pid)
+            .ok_or_else(|| anyhow!("Failed to retrieve information of current process"))?;
+        let ppid = proc
+            .parent()
+            .ok_or_else(|| anyhow!("Failed to retrieve parent PID"))?;
+        debug!(LOGGER.get().unwrap(), "PPID: {}", ppid);
+        let pproc = system
+            .get_process(ppid)
+            .ok_or_else(|| anyhow!("Failed to retrieve parent process information"))?;
+        let ppath = pproc.exe().to_string_lossy();
+        let matching_callers: Vec<_> = callers
+            .iter()
+            .filter(|caller| {
+                caller.path == ppath
+                    && caller.uid.map(|id| id == proc.uid).unwrap_or(true)
+                    && caller.gid.map(|id| id == proc.gid).unwrap_or(true)
+            })
+            .collect();
+        if matching_callers.is_empty() {
+            Err(anyhow!("You are not allowed to use this program"))
+        } else {
+            Ok(())
+        }
+    } else {
+        Ok(())
+    }
+}
+
 fn get_logins_for<T: AsRef<str>>(config: &Config, client_id: T, url: T) -> Result<Vec<LoginEntry>> {
     let databases = associated_databases(client_id.as_ref(), config)?;
     let id_key_pairs: Vec<_> = databases
@@ -175,6 +258,7 @@ fn get_logins_for<T: AsRef<str>>(config: &Config, client_id: T, url: T) -> Resul
 
 fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
     let config = Config::read_from(config_path.as_ref())?;
+    verify_caller(&config)?;
     // read credential request
     let (git_req, url) = read_git_request()?;
     // start session
@@ -208,6 +292,7 @@ fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
 
 fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
     let config = Config::read_from(config_path.as_ref())?;
+    verify_caller(&config)?;
     // read credential request
     let (git_req, url) = read_git_request()?;
     // start session
@@ -344,6 +429,22 @@ fn real_main() -> Result<()> {
         .set(logger)
         .map_err(|_| anyhow!("Failed to initialise logger"))?;
 
+    {
+        let pid = get_current_pid().map_err(|s| anyhow!("Failed to get current PID: {}", s))?;
+        let system = System::new_all();
+        if let Some(proc) = system.get_process(pid) {
+            let ppid = proc.parent().unwrap();
+            if let Some(pproc) = system.get_process(ppid) {
+                debug!(LOGGER.get().unwrap(), "Parent PID: {}", ppid);
+                debug!(
+                    LOGGER.get().unwrap(),
+                    "Parent path: {}",
+                    pproc.exe().to_string_lossy()
+                );
+            }
+        }
+    }
+
     let config_path = {
         if let Some(path) = args.value_of("config") {
             PathBuf::from(path)
@@ -364,6 +465,7 @@ fn real_main() -> Result<()> {
         .ok_or_else(|| anyhow!("No subcommand selected"))?;
     match subcommand {
         "configure" => configure(config_path, &args),
+        "caller" => caller(config_path, &args),
         "get" => get_logins(config_path),
         "store" => store_login(config_path),
         "erase" => erase_login(),

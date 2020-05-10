@@ -30,3 +30,23 @@ subcommands:
             help: Name of group where new credentials are stored
             default_value: Git
             takes_value: true
+  - caller:
+      about: Limit caller process
+      subcommands:
+        - add:
+            about: Add a new allowed caller
+            args:
+              - PATH:
+                  help: Absolute path of the caller executable
+                  required: true
+                  index: 1
+              - uid:
+                  long: uid
+                  help: UID of the caller process
+                  takes_value: true
+              - gid:
+                  long: gid
+                  help: GID of the caller process
+                  takes_value: true
+        - clear:
+            about: Clear the allowed callers list

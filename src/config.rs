@@ -7,6 +7,8 @@ use std::path::Path;
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct Config {
     pub databases: Vec<Database>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub callers: Option<Vec<Caller>>,
 }
 
 impl Config {
@@ -37,4 +39,13 @@ pub struct Database {
     pub pkey: String,
     pub group: String,
     pub group_uuid: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Caller {
+    pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uid: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gid: Option<u32>,
 }
