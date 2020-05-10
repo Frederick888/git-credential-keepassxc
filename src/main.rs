@@ -331,8 +331,8 @@ fn real_main() -> Result<()> {
         .version(env!("CARGO_PKG_VERSION"))
         .get_matches();
 
-    let level =
-        Level::from_usize(args.occurrences_of("verbose") as usize + 2).unwrap_or(Level::Error);
+    let level = Level::from_usize(std::cmp::min(6, args.occurrences_of("verbose") + 2) as usize)
+        .unwrap_or(Level::Error);
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::FullFormat::new(decorator)
         .build()
