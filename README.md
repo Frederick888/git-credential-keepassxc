@@ -34,7 +34,7 @@ $ git-credential-keepassxc callers add --uid "$(id -u)" --gid "$(id -g)" "$(read
 # then allow Git
 $ git-credential-keepassxc callers add --uid "$(id -u)" --gid "$(id -g)" "$(command -v git)"
 
-$ sh -c 'printf 'url=https://etc.com\nusername=hello\n' | git-credential-keepassxc get'
+$ sh -c 'printf "url=https://example.com\nusername=foo\n" | git-credential-keepassxc get'
 May 10 12:51:56.108 ERRO You are not allowed to use this program, Caused by: N/A, Message: You are not allowed to use this program
 $ printf 'url=https://example.com\nusername=foo\n' | git credential fill
 May 10 12:52:53.995 WARN Request get-logins failed. Error: No logins found, Error Code: 15
