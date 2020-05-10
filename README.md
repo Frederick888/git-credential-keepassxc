@@ -50,7 +50,7 @@ $ git-credential-keepassxc callers clear
 
 Although currently it's not possible to return entries only from the Git group, you may still want to hide specific ones from Git (for instance GitLab allows only access tokens to clone over HTTPS when 2FA is enabled, so your password may conflict with the token). This can be done by adding a magic attribute to those entries.
 
-1. In KeePassXC, go to Tools -> Settings -> Browser Integration -> Advanced, enable 'Return advanced string fields which start with "KPH: "' (this is enabled by default)
+1. In KeePassXC, go to Tools -> Settings -> Browser Integration -> Advanced, enable `Return advanced string fields which start with "KPH: "` (this is enabled by default)
 0. Open the entry you'd like to hide
 0. Go to Advanced
-0. Add an additional attribute "KPH: git" (without quotes, the space after colon is necessary) of which the value is "false" (without quotes)
+0. Add an additional attribute `KPH: git` (the space after colon is necessary) of which the value is `false`
