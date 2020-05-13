@@ -4,7 +4,7 @@ version = "0.1.3"
 authors = ["Frederick Zhang <frederick888@tsundere.moe>"]
 edition = "2018"
 description = "Helper that allows Git to use KeePassXC as credential store"
-license= "GPL-3.0-or-later"
+license = "GPL-3.0-or-later"
 homepage = "https://github.com/Frederick888/git-credential-keepassxc"
 readme = "README.md"
 repository = "https://github.com/Frederick888/git-credential-keepassxc"
@@ -18,10 +18,12 @@ crypto_box = "0.1.0"
 base64 = "0.12.0"
 rand = "0.7.3"
 xdg = "2.2.0"
-prctl = "1.0.0"
 clap = { version = "2.33.0", features = ["yaml"] }
 slog = "2.5.2"
 slog-term = "2.5.0"
 anyhow = "1.0.28"
 once_cell = "1.3.1"
 sysinfo = "0.14.1"
+
+[target.'cfg(unix)'.dependencies]
+prctl = "1.0.0"
