@@ -30,10 +30,17 @@ thread_local!(pub static SOCKET_PATH: OnceCell<PathBuf> = OnceCell::new());
 pub fn get_socket_path() -> Result<PathBuf> {
     SOCKET_PATH.with(|s| -> Result<_> {
         Ok(s.get_or_try_init(|| -> Result<_> {
-            let xdg_dirs = xdg::BaseDirectories::new().unwrap();
-            xdg_dirs
-                .find_runtime_file(KEEPASS_SOCKET_NAME)
-                .ok_or(anyhow!(SocketPathError {}))
+            let base_dirs = directories_next::BaseDirs::new()
+                .ok_or_else(|| anyhow!("Failed to initialise base_dirs"))?;
+            let socket_dir = if cfg!(windows) {
+                base_dirs.cache_dir()
+            } else {
+                // TODO: check macOS value
+                base_dirs
+                    .runtime_dir()
+                    .ok_or_else(|| anyhow!("Failed to locate runtime_dir automatically"))?
+            };
+            Ok(socket_dir.join(KEEPASS_SOCKET_NAME))
         })?
         .clone())
     })

@@ -494,8 +494,9 @@ fn real_main() -> Result<()> {
         if let Some(path) = args.value_of("config") {
             PathBuf::from(path)
         } else {
-            let xdg = xdg::BaseDirectories::new()?;
-            xdg.place_config_file(clap::crate_name!())?
+            let base_dirs = directories_next::BaseDirs::new()
+                .ok_or_else(|| anyhow!("Failed to initialise base_dirs"))?;
+            base_dirs.config_dir().join(clap::crate_name!())
         }
     };
     if let Some(path) = args.value_of("socket") {
