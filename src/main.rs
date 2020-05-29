@@ -219,6 +219,7 @@ fn verify_caller(config: &Config) -> Result<()> {
             .get_process(ppid)
             .ok_or_else(|| anyhow!("Failed to retrieve parent process information"))?;
         let ppath = pproc.exe().to_string_lossy();
+        #[cfg(unix)]
         let matching_callers: Vec<_> = callers
             .iter()
             .filter(|caller| {
@@ -226,6 +227,11 @@ fn verify_caller(config: &Config) -> Result<()> {
                     && caller.uid.map(|id| id == proc.uid).unwrap_or(true)
                     && caller.gid.map(|id| id == proc.gid).unwrap_or(true)
             })
+            .collect();
+        #[cfg(windows)]
+        let matching_callers: Vec<_> = callers
+            .iter()
+            .filter(|caller| caller.path == ppath)
             .collect();
         if matching_callers.is_empty() {
             Err(anyhow!("You are not allowed to use this program"))
