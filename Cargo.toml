@@ -27,3 +27,6 @@ directories-next = "1.0.1"
 
 [target.'cfg(unix)'.dependencies]
 prctl = "1.0.0"
+
+[target.'cfg(windows)'.dependencies]
+named_pipe = "0.4.1"

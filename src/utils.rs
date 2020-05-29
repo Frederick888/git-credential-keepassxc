@@ -4,12 +4,15 @@ use crypto_box::{
     aead::{generic_array, Aead},
     PublicKey, SalsaBox, SecretKey, KEY_SIZE,
 };
+#[cfg(windows)]
+use named_pipe::PipeClient;
 use once_cell::unsync::OnceCell;
 use rand::rngs::ThreadRng;
 use slog::debug;
 use std::cell::RefCell;
 use std::fmt;
 use std::io::{Read, Write};
+#[cfg(unix)]
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -28,22 +31,35 @@ impl std::error::Error for SocketPathError {}
 
 thread_local!(pub static SOCKET_PATH: OnceCell<PathBuf> = OnceCell::new());
 pub fn get_socket_path() -> Result<PathBuf> {
-    SOCKET_PATH.with(|s| -> Result<_> {
+    let socket_path = SOCKET_PATH.with(|s| -> Result<_> {
         Ok(s.get_or_try_init(|| -> Result<_> {
             let base_dirs = directories_next::BaseDirs::new()
                 .ok_or_else(|| anyhow!("Failed to initialise base_dirs"))?;
             let socket_dir = if cfg!(windows) {
-                base_dirs.cache_dir()
+                let cache_dir = base_dirs.cache_dir();
+                PathBuf::from(format!(
+                    "\\\\.\\pipe\\\\{}\\Temp\\kpxc_server",
+                    cache_dir.to_string_lossy()
+                ))
             } else {
                 // TODO: check macOS value
                 base_dirs
                     .runtime_dir()
                     .ok_or_else(|| anyhow!("Failed to locate runtime_dir automatically"))?
+                    .join(KEEPASS_SOCKET_NAME)
             };
-            Ok(socket_dir.join(KEEPASS_SOCKET_NAME))
+            Ok(socket_dir)
         })?
         .clone())
-    })
+    });
+    if let Ok(ref socket_path) = socket_path {
+        debug!(
+            crate::LOGGER.get().unwrap(),
+            "Socket path: {}",
+            socket_path.to_string_lossy()
+        );
+    }
+    socket_path
 }
 
 #[derive(Debug)]
@@ -67,6 +83,7 @@ impl fmt::Display for CryptionError {
 }
 impl std::error::Error for CryptionError {}
 
+#[cfg(unix)]
 fn get_stream() -> Result<Rc<RefCell<UnixStream>>> {
     thread_local!(static STREAM: OnceCell<Rc<RefCell<UnixStream>>> = OnceCell::new());
     Ok(STREAM.with(|s| -> Result<_> {
@@ -80,8 +97,12 @@ fn get_stream() -> Result<Rc<RefCell<UnixStream>>> {
 
 pub fn exchange_message(request: String) -> Result<String> {
     debug!(crate::LOGGER.get().unwrap(), "SEND: {}", request);
+    #[cfg(unix)]
     let mut stream = get_stream()?.borrow().try_clone()?;
+    #[cfg(windows)]
+    let mut stream = PipeClient::connect(get_socket_path()?)?;
     stream.write_all(request.as_bytes())?;
+    #[cfg(unix)]
     stream.write_all(b"\n")?;
     let mut response = String::new();
     const BUF_SIZE: usize = 128;
