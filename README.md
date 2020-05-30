@@ -1,4 +1,4 @@
-# `git-credential-keepassxc`
+# `git-credential-keepassxc` [![Travis Status](https://travis-ci.org/Frederick888/git-credential-keepassxc.svg?branch=master)](https://travis-ci.org/Frederick888/git-credential-keepassxc)
 
 `git-credential-keepassxc` is a [Git credential](https://git-scm.com/docs/gitcredentials) helper that allows Git to get/store logins from/to [KeePassXC](https://keepassxc.org/).
 
