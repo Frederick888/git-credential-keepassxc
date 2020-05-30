@@ -219,6 +219,7 @@ fn verify_caller(config: &Config) -> Result<()> {
             .get_process(ppid)
             .ok_or_else(|| anyhow!("Failed to retrieve parent process information"))?;
         let ppath = pproc.exe().to_string_lossy();
+        #[cfg(unix)]
         let matching_callers: Vec<_> = callers
             .iter()
             .filter(|caller| {
@@ -226,6 +227,11 @@ fn verify_caller(config: &Config) -> Result<()> {
                     && caller.uid.map(|id| id == proc.uid).unwrap_or(true)
                     && caller.gid.map(|id| id == proc.gid).unwrap_or(true)
             })
+            .collect();
+        #[cfg(windows)]
+        let matching_callers: Vec<_> = callers
+            .iter()
+            .filter(|caller| caller.path == ppath)
             .collect();
         if matching_callers.is_empty() {
             Err(anyhow!("You are not allowed to use this program"))
@@ -449,7 +455,8 @@ fn erase_login() -> Result<()> {
 }
 
 fn real_main() -> Result<()> {
-    if cfg!(unix) && !cfg!(debug_assertions) {
+    #[cfg(all(target_family = "unix", not(debug_assertions)))]
+    {
         prctl::set_dumpable(false)
             .or_else(|c| Err(anyhow!("Failed to disable dump, code: {}", c)))?;
     }
@@ -493,8 +500,9 @@ fn real_main() -> Result<()> {
         if let Some(path) = args.value_of("config") {
             PathBuf::from(path)
         } else {
-            let xdg = xdg::BaseDirectories::new()?;
-            xdg.place_config_file(clap::crate_name!())?
+            let base_dirs = directories_next::BaseDirs::new()
+                .ok_or_else(|| anyhow!("Failed to initialise base_dirs"))?;
+            base_dirs.config_dir().join(clap::crate_name!())
         }
     };
     if let Some(path) = args.value_of("socket") {

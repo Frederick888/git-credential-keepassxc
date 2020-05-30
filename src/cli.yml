@@ -42,11 +42,11 @@ subcommands:
                   index: 1
               - uid:
                   long: uid
-                  help: UID of the caller process
+                  help: UID of the caller process (ignored under Windows)
                   takes_value: true
               - gid:
                   long: gid
-                  help: GID of the caller process
+                  help: GID of the caller process (ignored under Windows)
                   takes_value: true
         - clear:
             about: Clear the allowed callers list
