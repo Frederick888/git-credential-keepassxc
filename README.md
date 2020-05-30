@@ -54,3 +54,23 @@ Although currently it's not possible to return entries only from the Git group, 
 0. Open the entry you'd like to hide
 0. Go to Advanced
 0. Add an additional attribute `KPH: git` (the space after colon is necessary) of which the value is `false`
+
+## Scripting
+
+`git-credential-keepassxc` can also help manage credentials in shell scripts. For instance, to connect to a Remote Desktop service:
+
+```sh
+#!/usr/bin/env bash
+
+trap 'notify-send "RDP Failure" "Failed to connect to Remote Desktop service"' ERR
+
+HOST="example.com"
+PORT="3389"
+USERNAME="Administrator"
+PASSWORD="$(printf 'url=rdp://%s:%s\n' "$HOST" "$PORT" | git-credential-keepassxc get | sed -n 's/^password=//p')"
+
+xfreerdp /v:"$HOST:$PORT" /cert-tofu /cert:ignore \
+    /size:2560x1620 /smart-sizing /scale:140 /scale-desktop:140 /scale-device:140 \
+    +compression /compression-level:2 +clipboard +themes +wallpaper \
+    /t:Example +decorations /u:"$USERNAME" /p:"$PASSWORD"
+```
