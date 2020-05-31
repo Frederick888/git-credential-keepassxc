@@ -367,7 +367,23 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
 
     let login_entries = get_logins_for(&config, &client_id, &url).and_then(|entries| {
         let (kph_false, entries) = filter_kph_logins(&entries);
-        let entries: Vec<_> = entries.into_iter().cloned().collect();
+        if kph_false > 0 {
+            info!(
+                LOGGER.get().unwrap(),
+                "{} login(s) were labeled as KPH: git == false", kph_false
+            );
+        }
+        let username = git_req.username.as_ref().unwrap();
+        let entries: Vec<_> = entries
+            .into_iter()
+            .filter(|entry| entry.login == *username)
+            .cloned()
+            .collect();
+        info!(
+            LOGGER.get().unwrap(),
+            "{} login(s) left after filtering by username",
+            entries.len()
+        );
         if entries.is_empty() {
             // this Err is never used
             Err(anyhow!(
