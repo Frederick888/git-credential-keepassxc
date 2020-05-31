@@ -67,7 +67,7 @@ trap 'notify-send "RDP Failure" "Failed to connect to Remote Desktop service"' E
 HOST="example.com"
 PORT="3389"
 USERNAME="Administrator"
-PASSWORD="$(printf 'url=rdp://%s:%s\n' "$HOST" "$PORT" | git-credential-keepassxc get | sed -n 's/^password=//p')"
+PASSWORD="$(printf 'url=rdp://%s:%s\nusername=%s\n' "$HOST" "$PORT" "$USERNAME" | git-credential-keepassxc get | sed -n 's/^password=//p')"
 
 xfreerdp /v:"$HOST:$PORT" /cert-tofu /cert:ignore \
     /size:2560x1620 /smart-sizing /scale:140 /scale-desktop:140 /scale-device:140 \
