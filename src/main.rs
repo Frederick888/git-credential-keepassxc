@@ -518,6 +518,19 @@ fn real_main() -> Result<()> {
         .set(logger)
         .map_err(|_| anyhow!("Failed to initialise logger"))?;
 
+    #[cfg(all(target_family = "unix", not(debug_assertions)))]
+    {
+        if let Ok(dumpable) = prctl::get_dumpable() {
+            if dumpable {
+                warn!(LOGGER.get().unwrap(), "Failed to disable dump");
+            } else {
+                info!(LOGGER.get().unwrap(), "Dump is disabled");
+            }
+        } else {
+            warn!(LOGGER.get().unwrap(), "Failed to query dumpable status");
+        }
+    }
+
     {
         let pid = get_current_pid().map_err(|s| anyhow!("Failed to get current PID: {}", s))?;
         let system = System::new_all();
