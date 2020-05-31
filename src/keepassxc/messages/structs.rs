@@ -381,6 +381,7 @@ pub struct SetLoginRequest {
 }
 
 impl SetLoginRequest {
+    #[allow(clippy::too_many_arguments)]
     pub fn new<T: Into<String>>(
         url: T,
         submit_url: T,

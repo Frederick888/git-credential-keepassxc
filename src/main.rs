@@ -322,7 +322,7 @@ fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
         let login_entries_name_matches: Vec<_> = login_entries
             .iter()
             .filter(|entry| entry.login == *username)
-            .map(|entry| *entry)
+            .cloned()
             .collect();
         if !login_entries_name_matches.is_empty() {
             info!(
