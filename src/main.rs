@@ -324,7 +324,7 @@ fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
             .filter(|entry| entry.login == *username)
             .map(|entry| *entry)
             .collect();
-        if login_entries_name_matches.len() > 0 {
+        if !login_entries_name_matches.is_empty() {
             info!(
                 LOGGER.get().unwrap(),
                 "{} login(s) left after filtering by username",
