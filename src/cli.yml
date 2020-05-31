@@ -14,7 +14,7 @@ args:
   - verbose:
       short: v
       multiple: true
-      help: "Sets the level of verbosity (-v: WARNING; -vv: INFO; -vvv: DEBUG)"
+      help: "Sets the level of verbosity (-v: WARNING; -vv: INFO; -vvv: DEBUG in debug builds)"
 subcommands:
   - get:
       about: Get credential (used by Git)
