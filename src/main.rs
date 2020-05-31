@@ -52,6 +52,10 @@ fn read_git_request() -> Result<(GitCredentialMessage, String)> {
         io::stdin().read_to_string(&mut git_req_string)?;
         GitCredentialMessage::from_str(&git_req_string)?
     };
+    debug!(
+        LOGGER.get().unwrap(),
+        "Git credential request: {:?}", git_req
+    );
     let url = {
         if let Some(ref url_string) = git_req.url {
             url_string.clone()
@@ -243,6 +247,8 @@ fn verify_caller(config: &Config) -> Result<()> {
     }
 }
 
+/// Returns all entries from KeePassXC except for expired ones (which are not returned by KeePassXC
+/// actually, but better to be safe than sorry)
 fn get_logins_for<T: AsRef<str>>(config: &Config, client_id: T, url: T) -> Result<Vec<LoginEntry>> {
     let databases = associated_databases(client_id.as_ref(), config)?;
     let id_key_pairs: Vec<_> = databases
@@ -301,7 +307,7 @@ fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
         "KeePassXC return {} login(s)",
         login_entries.len()
     );
-    let (kph_false, login_entries) = filter_kph_logins(&login_entries);
+    let (kph_false, mut login_entries) = filter_kph_logins(&login_entries);
     if kph_false > 0 {
         info!(
             LOGGER.get().unwrap(),
@@ -310,6 +316,22 @@ fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
     }
     if login_entries.is_empty() {
         return Err(anyhow!("No matching logins found"));
+    }
+    if login_entries.len() > 1 && git_req.username.is_some() {
+        let username = git_req.username.as_ref().unwrap();
+        let login_entries_name_matches: Vec<_> = login_entries
+            .iter()
+            .filter(|entry| entry.login == *username)
+            .map(|entry| *entry)
+            .collect();
+        if login_entries_name_matches.len() > 0 {
+            info!(
+                LOGGER.get().unwrap(),
+                "{} login(s) left after filtering by username",
+                login_entries_name_matches.len()
+            );
+            login_entries = login_entries_name_matches;
+        }
     }
     if login_entries.len() > 1 {
         warn!(
