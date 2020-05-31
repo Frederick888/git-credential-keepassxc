@@ -95,12 +95,22 @@ fn get_stream() -> Result<Rc<RefCell<UnixStream>>> {
     })?)
 }
 
+#[cfg(windows)]
+fn get_stream() -> Result<Rc<RefCell<PipeClient>>> {
+    thread_local!(static STREAM: OnceCell<Rc<RefCell<PipeClient>>> = OnceCell::new());
+    Ok(STREAM.with(|s| -> Result<_> {
+        Ok(s.get_or_try_init(|| -> Result<_> {
+            let path = get_socket_path()?;
+            Ok(Rc::new(RefCell::new(PipeClient::connect(path)?)))
+        })?
+        .clone())
+    })?)
+}
+
 pub fn exchange_message(request: String) -> Result<String> {
     debug!(crate::LOGGER.get().unwrap(), "SEND: {}", request);
-    #[cfg(unix)]
-    let mut stream = get_stream()?.borrow().try_clone()?;
-    #[cfg(windows)]
-    let mut stream = PipeClient::connect(get_socket_path()?)?;
+    let stream_rc = get_stream()?;
+    let mut stream = stream_rc.borrow_mut();
     stream.write_all(request.as_bytes())?;
     #[cfg(unix)]
     stream.write_all(b"\n")?;
