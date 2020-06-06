@@ -5,7 +5,7 @@ mod utils;
 
 use anyhow::{anyhow, Result};
 use clap::{App, ArgMatches};
-use config::{Caller, Config, Database};
+use config::{Caller, Config, Database, Encryption};
 use crypto_box::{PublicKey, SecretKey};
 use git::GitCredentialMessage;
 use keepassxc::{messages::*, Group};
@@ -76,9 +76,9 @@ fn read_git_request() -> Result<(GitCredentialMessage, String)> {
     Ok((git_req, url))
 }
 
-fn associated_databases<T: AsRef<str>>(client_id: T, config: &Config) -> Result<Vec<&Database>> {
+fn associated_databases<T: AsRef<str>>(client_id: T, config: &Config) -> Result<Vec<Database>> {
     let databases: Vec<_> = config
-        .databases
+        .get_databases()?
         .iter()
         .filter(|ref db| {
             let taso_req = TestAssociateRequest::new(db.id.as_str(), db.pkey.as_str());
@@ -95,6 +95,7 @@ fn associated_databases<T: AsRef<str>>(client_id: T, config: &Config) -> Result<
                 false
             }
         })
+        .cloned()
         .collect();
     if databases.is_empty() {
         Err(anyhow!(
@@ -142,20 +143,138 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         Config::new()
     };
 
+    let to_encrypt = args
+        .subcommand_matches("configure")
+        .and_then(|m| m.value_of("encrypt"))
+        .map(|m| !m.is_empty())
+        .unwrap_or_else(|| false);
+    if to_encrypt {
+        if config_file.encryption.is_empty() {
+            let encryption_profile = args
+                .subcommand_matches("configure")
+                .and_then(|m| m.value_of("encrypt"))
+                .ok_or_else(|| {
+                    anyhow!("No encryption profile defined, must specify one via command line")
+                })?;
+            let encryption_profile = Encryption::from_str(&encryption_profile)?;
+            config_file.encryption.push(encryption_profile);
+        } else {
+            info!(
+                LOGGER.get().unwrap(),
+                "Using existing encryption profile found in configuration file"
+            );
+        }
+    }
+
     // save new config
     info!(
         LOGGER.get().unwrap(),
         "Saving configuration to {}",
         config_path.as_ref().to_string_lossy()
     );
-    config_file.databases.push(Database {
+    config_file.add_database(Database {
         id: database_id,
         key: id_seckey_b64,
         pkey: id_pubkey_b64,
+        encrypted: false,
         group: group.name,
         group_uuid: group.uuid,
-    });
+    })?;
     config_file.write_to(&config_path)?;
+
+    Ok(())
+}
+
+fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
+    let mut config_file = Config::read_from(&config_path)?;
+    verify_caller(&config_file)?;
+
+    let mut count_to_encrypt = 0usize;
+    let databases: Vec<_> = config_file
+        .get_databases()?
+        .into_iter()
+        .map(|mut d| {
+            if !d.encrypted {
+                count_to_encrypt += 1;
+                d.encrypted = true;
+            }
+            d
+        })
+        .collect();
+    if count_to_encrypt == 0 {
+        warn!(
+            LOGGER.get().unwrap(),
+            "Database keys have already been encrypted"
+        );
+        return Ok(());
+    }
+    debug!(
+        LOGGER.get().unwrap(),
+        "{} database key(s) to encrypt", count_to_encrypt
+    );
+
+    if config_file.encryption.is_empty() {
+        let encryption_profile = args
+            .subcommand_matches("encrypt")
+            .and_then(|m| m.value_of("ENCRYPTION_PROFILE"))
+            .ok_or_else(|| {
+                anyhow!("No encryption profile defined, must specify one via command line")
+            })?;
+        let encryption_profile = Encryption::from_str(&encryption_profile)?;
+        config_file.encryption.push(encryption_profile);
+    } else {
+        info!(
+            LOGGER.get().unwrap(),
+            "Using existing encryption profile found in configuration file"
+        );
+    }
+
+    config_file.clear_databases();
+    for database in databases {
+        config_file.add_database(database)?;
+    }
+
+    config_file.write_to(config_path)?;
+
+    Ok(())
+}
+
+fn decrypt<T: AsRef<Path>>(config_path: T) -> Result<()> {
+    let mut config_file = Config::read_from(&config_path)?;
+    verify_caller(&config_file)?;
+
+    let mut count_to_decrypt = 0usize;
+    let databases: Vec<_> = config_file
+        .get_databases()?
+        .into_iter()
+        .map(|mut d| {
+            if d.encrypted {
+                count_to_decrypt += 1;
+                d.encrypted = false;
+            }
+            d
+        })
+        .collect();
+    if count_to_decrypt == 0 {
+        warn!(
+            LOGGER.get().unwrap(),
+            "Database keys have already been decrypted"
+        );
+        return Ok(());
+    }
+    debug!(
+        LOGGER.get().unwrap(),
+        "{} database key(s) to decrypt", count_to_decrypt
+    );
+
+    config_file.encryption.clear();
+
+    config_file.clear_databases();
+    for database in databases {
+        config_file.add_database(database)?;
+    }
+
+    config_file.write_to(config_path)?;
 
     Ok(())
 }
@@ -417,12 +536,13 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
             return Ok(());
         }
 
-        if config.databases.len() > 1 {
+        let databases = config.get_databases()?;
+        if databases.len() > 1 {
             // how do I know which database it's from?
             error!(LOGGER.get().unwrap(), "Trying to update an existing login when multiple databases are configured, this is not implemented yet");
             unimplemented!();
         }
-        let database = config.databases.first().unwrap();
+        let database = databases.first().unwrap();
         SetLoginRequest::new(
             &url,
             &url,
@@ -438,13 +558,14 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
             LOGGER.get().unwrap(),
             "No existing logins found, gonna create a new one"
         );
-        if config.databases.len() > 1 {
+        let databases = config.get_databases()?;
+        if databases.len() > 1 {
             warn!(
                 LOGGER.get().unwrap(),
                 "More than 1 databases configured, gonna save the new login in the first database"
             );
         }
-        let database = config.databases.first().unwrap();
+        let database = databases.first().unwrap();
         SetLoginRequest::new(
             &url,
             &url,
@@ -569,6 +690,8 @@ fn real_main() -> Result<()> {
     debug!(LOGGER.get().unwrap(), "Subcommand: {}", subcommand);
     match subcommand {
         "configure" => configure(config_path, &args),
+        "encrypt" => encrypt(config_path, &args),
+        "decrypt" => decrypt(config_path),
         "caller" => caller(config_path, &args),
         "get" => get_logins(config_path),
         "store" => store_login(config_path),
