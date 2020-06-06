@@ -493,7 +493,7 @@ fn erase_login() -> Result<()> {
 }
 
 fn real_main() -> Result<()> {
-    #[cfg(all(target_family = "unix", not(debug_assertions)))]
+    #[cfg(all(target_os = "linux", not(debug_assertions)))]
     {
         prctl::set_dumpable(false)
             .or_else(|c| Err(anyhow!("Failed to disable dump, code: {}", c)))?;
@@ -518,7 +518,7 @@ fn real_main() -> Result<()> {
         .set(logger)
         .map_err(|_| anyhow!("Failed to initialise logger"))?;
 
-    #[cfg(all(target_family = "unix", not(debug_assertions)))]
+    #[cfg(all(target_os = "linux", not(debug_assertions)))]
     {
         if let Ok(dumpable) = prctl::get_dumpable() {
             if dumpable {
