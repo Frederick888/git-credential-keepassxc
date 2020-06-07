@@ -112,8 +112,6 @@ pub fn exchange_message(request: String) -> Result<String> {
     let stream_rc = get_stream()?;
     let mut stream = stream_rc.borrow_mut();
     stream.write_all(request.as_bytes())?;
-    #[cfg(unix)]
-    stream.write_all(b"\n")?;
     let mut response = String::new();
     const BUF_SIZE: usize = 128;
     let mut buf = [0u8; BUF_SIZE];
