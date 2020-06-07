@@ -74,7 +74,7 @@ impl Config {
 
     fn base64_decrypt(&self, data: &str) -> Result<String> {
         let (key, nonce) = self.get_encryption_key()?;
-        let key = GenericArray::clone_from_slice(key.as_ref());
+        let key = GenericArray::from_slice(key.as_ref());
         let nonce = base64::decode(nonce)?;
         let nonce = GenericArray::from_slice(nonce.as_ref());
         let aead = Aes256Gcm::new(key);
@@ -88,7 +88,7 @@ impl Config {
 
     fn base64_encrypt(&self, data: &str) -> Result<String> {
         let (key, nonce) = self.get_encryption_key()?;
-        let key = GenericArray::clone_from_slice(key.as_ref());
+        let key = GenericArray::from_slice(key.as_ref());
         let nonce = base64::decode(nonce)?;
         let nonce = GenericArray::from_slice(nonce.as_ref());
         let aead = Aes256Gcm::new(key);
