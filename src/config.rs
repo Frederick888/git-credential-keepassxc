@@ -1,22 +1,31 @@
+#[cfg(feature = "encryption")]
 use aes_gcm::aead::{generic_array::GenericArray, Aead, NewAead};
+#[cfg(feature = "encryption")]
 use aes_gcm::Aes256Gcm;
 use anyhow::{anyhow, Result};
+#[cfg(feature = "encryption")]
 use rand::distributions::Alphanumeric;
+#[cfg(feature = "encryption")]
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use slog::*;
 use std::cell::{Ref, RefCell};
 use std::fs;
 use std::io::prelude::*;
-use std::ops::Deref;
 use std::path::Path;
 use std::str::FromStr;
+#[cfg(feature = "yubikey")]
 use yubico_manager::config as yubico_config;
+#[cfg(feature = "yubikey")]
 use yubico_manager::Yubico;
 
+#[cfg(feature = "yubikey")]
 const YUBIKEY_CHALLENGE_LENGTH: usize = 64usize;
+#[cfg(feature = "yubikey")]
 const YUBIKEY_RESPONSE_LENGTH: usize = 20usize;
+#[cfg(feature = "encryption")]
 const AES_KEY_LENGTH: usize = 32usize;
+#[cfg(feature = "encryption")]
 const AES_NONCE_LENGTH: usize = 12usize;
 
 #[derive(Serialize, Deserialize, Default, Debug)]
@@ -72,6 +81,16 @@ impl Config {
         Ok(())
     }
 
+    #[cfg(not(feature = "encryption"))]
+    fn base64_decrypt(&self, _data: &str) -> Result<String> {
+        error!(
+            crate::LOGGER.get().unwrap(),
+            "Enable encryption to use this feature"
+        );
+        Err(anyhow!("Encryption is not enabled in this build"))
+    }
+
+    #[cfg(feature = "encryption")]
     fn base64_decrypt(&self, data: &str) -> Result<String> {
         let (key, nonce) = self.get_encryption_key()?;
         let key = GenericArray::from_slice(key.as_ref());
@@ -86,6 +105,16 @@ impl Config {
         Ok(base64::encode(&decrypted))
     }
 
+    #[cfg(not(feature = "encryption"))]
+    fn base64_encrypt(&self, _data: &str) -> Result<String> {
+        error!(
+            crate::LOGGER.get().unwrap(),
+            "Enable encryption to use this feature"
+        );
+        Err(anyhow!("Encryption is not enabled in this build"))
+    }
+
+    #[cfg(feature = "encryption")]
     fn base64_encrypt(&self, data: &str) -> Result<String> {
         let (key, nonce) = self.get_encryption_key()?;
         let key = GenericArray::from_slice(key.as_ref());
@@ -100,12 +129,27 @@ impl Config {
         Ok(base64::encode(&encrypted))
     }
 
+    #[allow(dead_code)]
     fn get_encryption_key(&self) -> Result<(Ref<Vec<u8>>, &str)> {
         if self.encryption.is_empty() {
             return Err(anyhow!("No encryption profile found"));
         }
         let encryption = &self.encryption[0];
         match encryption {
+            #[cfg(not(feature = "yubikey"))]
+            Encryption::ChallengeResponse {
+                slot: _,
+                challenge: _,
+                response: _,
+                nonce: _,
+            } => {
+                error!(
+                    crate::LOGGER.get().unwrap(),
+                    "Challenge-response encryption profile found however YubiKey is not enabled in this build"
+                );
+                Err(anyhow!("YubiKey is not enabled in this build"))
+            }
+            #[cfg(feature = "yubikey")]
             Encryption::ChallengeResponse {
                 slot,
                 challenge,
@@ -139,7 +183,7 @@ impl Config {
                     "Retrieving response, tap your YubiKey if needed"
                 );
                 let hmac_result = yubi.challenge_response_hmac(challenge.as_bytes(), config)?;
-                let hmac_response: &[u8] = hmac_result.deref();
+                let hmac_response: &[u8] = &*hmac_result;
                 response.borrow_mut().extend_from_slice(hmac_response);
                 let padding = [0u8; AES_KEY_LENGTH - YUBIKEY_RESPONSE_LENGTH];
                 response.borrow_mut().extend_from_slice(&padding);
@@ -193,6 +237,15 @@ impl FromStr for Encryption {
             return Err(anyhow!("Failed to parse encryption profile: {}", profile));
         }
         match profile_vec[0] {
+            #[cfg(not(feature = "yubikey"))]
+            "challenge-response" => {
+                error!(
+                    crate::LOGGER.get().unwrap(),
+                    "YubiKey is not enabled in this build"
+                );
+                Err(anyhow!("YubiKey is not enabled in this build"))
+            }
+            #[cfg(feature = "yubikey")]
             "challenge-response" => {
                 let slot = if let Some(slot) = profile_vec.get(1) {
                     u8::from_str(slot)?
@@ -204,7 +257,7 @@ impl FromStr for Encryption {
                 }
                 let mut rng = thread_rng();
                 let challenge = if let Some(challenge) = profile_vec.get(2) {
-                    challenge.deref().to_owned()
+                    (*challenge).to_owned()
                 } else {
                     rng.sample_iter(Alphanumeric)
                         .take(YUBIKEY_CHALLENGE_LENGTH)

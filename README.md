@@ -53,6 +53,10 @@ By default the keys for authentication are stored in plaintext, which means it's
 `git-credential-keepassxc` is capable of encrypting KeePassXC keys using YubiKey Challenge-Response. To enable this feature:
 
 ```sh
+# enable YubiKey feature
+$ cargo install --features=yubikey git-credential-keepassxc
+# additionally if you use cargo-update
+$ cargo install-update-config --feature=yubikey git-credential-keepassxc
 # encrypt using YubiKey slot 2 and a randomly generated challenge
 $ git-credential-keepassxc encrypt challenge-response
 ```
