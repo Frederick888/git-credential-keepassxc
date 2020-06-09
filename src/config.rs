@@ -161,9 +161,15 @@ impl Config {
                 }
                 let mut yubi = Yubico::new();
                 let device = yubi.find_yubikey()?;
+                let config = yubico_config::Config::default()
+                    .set_vendor_id(device.vendor_id)
+                    .set_product_id(device.product_id);
                 debug!(
                     crate::LOGGER.get().unwrap(),
-                    "Found YubiKey, vendor: {}, product: {}", device.vendor_id, device.product_id
+                    "Found YubiKey, vendor: {}, product: {}, serial: {}",
+                    device.vendor_id,
+                    device.product_id,
+                    yubi.read_serial_number(config).unwrap_or_default()
                 );
                 let slot = if *slot == 1 {
                     yubico_config::Slot::Slot1
