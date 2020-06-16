@@ -34,7 +34,7 @@ fn start_session() -> Result<(String, SecretKey, PublicKey)> {
     let session_pubkey = session_seckey.public_key();
 
     // temporary client id
-    let (_, client_id) = generate_nonce();
+    let (_, client_id) = nacl_nonce();
 
     // exchange public keys
     let host_pubkey = exchange_keys(&client_id, &session_pubkey)?;
@@ -118,9 +118,7 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
 
     // generate permanent client key for future authentication
     let id_seckey = generate_secret_key();
-    let id_seckey_b64 = base64::encode(id_seckey.to_bytes());
     let id_pubkey = id_seckey.public_key();
-    let id_pubkey_b64 = base64::encode(id_pubkey.as_bytes());
 
     let aso_req = AssociateRequest::new(&session_pubkey, &id_pubkey);
     let aso_resp = aso_req.send(&client_id)?;
@@ -172,14 +170,7 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         "Saving configuration to {}",
         config_path.as_ref().to_string_lossy()
     );
-    config_file.add_database(Database {
-        id: database_id,
-        key: id_seckey_b64,
-        pkey: id_pubkey_b64,
-        encrypted: false,
-        group: group.name,
-        group_uuid: group.uuid,
-    })?;
+    config_file.add_database(Database::new(database_id, id_seckey, group, to_encrypt)?)?;
     config_file.write_to(&config_path)?;
 
     Ok(())
@@ -190,17 +181,13 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     verify_caller(&config_file)?;
 
     let mut count_to_encrypt = 0usize;
-    let databases: Vec<_> = config_file
-        .get_databases()?
-        .into_iter()
-        .map(|mut d| {
-            if !d.encrypted {
-                count_to_encrypt += 1;
-                d.encrypted = true;
-            }
-            d
-        })
-        .collect();
+    let mut databases = config_file.get_databases()?;
+    for database in &mut databases {
+        if !database.encrypted() {
+            count_to_encrypt += 1;
+            database.encrypt()?;
+        }
+    }
     if count_to_encrypt == 0 {
         warn!(
             LOGGER.get().unwrap(),
@@ -244,17 +231,13 @@ fn decrypt<T: AsRef<Path>>(config_path: T) -> Result<()> {
     verify_caller(&config_file)?;
 
     let mut count_to_decrypt = 0usize;
-    let databases: Vec<_> = config_file
-        .get_databases()?
-        .into_iter()
-        .map(|mut d| {
-            if d.encrypted {
-                count_to_decrypt += 1;
-                d.encrypted = false;
-            }
-            d
-        })
-        .collect();
+    let mut databases: Vec<_> = config_file.get_databases()?;
+    for database in &mut databases {
+        if database.encrypted() {
+            count_to_decrypt += 1;
+            database.decrypt()?;
+        }
+    }
     if count_to_decrypt == 0 {
         warn!(
             LOGGER.get().unwrap(),

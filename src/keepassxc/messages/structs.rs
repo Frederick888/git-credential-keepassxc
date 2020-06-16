@@ -37,7 +37,7 @@ where
             "Sending {} request",
             self.get_action().to_string()
         );
-        let (nonce, nonce_b64) = generate_nonce();
+        let (nonce, nonce_b64) = nacl_nonce();
         let encrypted_request_json = to_encrypted_json(&self, &nonce)?;
         let request_wrapper = GenericRequestWrapper {
             action: self.get_action(),
@@ -139,7 +139,7 @@ pub struct ChangePublicKeysRequest {
 
 impl ChangePublicKeysRequest {
     pub fn new<T: Into<String>>(client_id: T, public_key: &PublicKey) -> Self {
-        let (_, nonce) = generate_nonce();
+        let (_, nonce) = nacl_nonce();
         let public_key = base64::encode(public_key.as_bytes());
         Self {
             action: KeePassAction::ChangePublicKeys,
@@ -392,7 +392,7 @@ impl SetLoginRequest {
         group_uuid: Option<T>,
         uuid: Option<T>,
     ) -> Self {
-        let (_, nonce) = generate_nonce();
+        let (_, nonce) = nacl_nonce();
         Self {
             action: KeePassAction::SetLogin,
             url: url.into(),
