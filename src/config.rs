@@ -139,6 +139,7 @@ impl Config {
         match encryption {
             #[cfg(not(feature = "yubikey"))]
             Encryption::ChallengeResponse {
+                serial: _,
                 slot: _,
                 challenge: _,
                 response: _,
@@ -151,6 +152,7 @@ impl Config {
             }
             #[cfg(feature = "yubikey")]
             Encryption::ChallengeResponse {
+                serial,
                 slot,
                 challenge,
                 response,
@@ -158,17 +160,29 @@ impl Config {
                 if response.borrow().is_some() {
                     return Ok(response.borrow());
                 }
+                info!(
+                    crate::LOGGER.get().unwrap(),
+                    "Current challenge-response encryption profile was created using YubiKey {}",
+                    serial.unwrap_or_default()
+                );
                 let mut yubi = Yubico::new();
                 let device = yubi.find_yubikey()?;
                 let config = yubico_config::Config::default()
                     .set_vendor_id(device.vendor_id)
                     .set_product_id(device.product_id);
+                let curr_serial = yubi.read_serial_number(config).ok();
+                if curr_serial.is_none() {
+                    warn!(
+                        crate::LOGGER.get().unwrap(),
+                        "Failed to read YubiKey serial number"
+                    );
+                }
                 debug!(
                     crate::LOGGER.get().unwrap(),
                     "Found YubiKey, vendor: {}, product: {}, serial: {}",
                     device.vendor_id,
                     device.product_id,
-                    yubi.read_serial_number(config).unwrap_or_default()
+                    curr_serial.unwrap_or_default()
                 );
                 let slot = if *slot == 1 {
                     yubico_config::Slot::Slot1
@@ -183,7 +197,7 @@ impl Config {
                     .set_mode(yubico_config::Mode::Sha1)
                     .set_slot(slot);
                 debug!(crate::LOGGER.get().unwrap(), "Challenge: {}", challenge);
-                warn!(
+                info!(
                     crate::LOGGER.get().unwrap(),
                     "Retrieving response, tap your YubiKey if needed"
                 );
@@ -327,6 +341,8 @@ pub struct Caller {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Encryption {
     ChallengeResponse {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        serial: Option<u32>,
         slot: u8,
         challenge: String,
         #[serde(skip)]
@@ -353,6 +369,18 @@ impl FromStr for Encryption {
             }
             #[cfg(feature = "yubikey")]
             "challenge-response" => {
+                let mut yubi = Yubico::new();
+                let device = yubi.find_yubikey()?;
+                let config = yubico_config::Config::default()
+                    .set_vendor_id(device.vendor_id)
+                    .set_product_id(device.product_id);
+                let serial = yubi.read_serial_number(config).ok();
+                if serial.is_none() {
+                    warn!(
+                        crate::LOGGER.get().unwrap(),
+                        "Failed to read YubiKey serial number"
+                    );
+                }
                 let slot = if let Some(slot) = profile_vec.get(1) {
                     u8::from_str(slot)?
                 } else {
@@ -370,6 +398,7 @@ impl FromStr for Encryption {
                         .collect()
                 };
                 Ok(Encryption::ChallengeResponse {
+                    serial,
                     slot,
                     challenge,
                     response: RefCell::new(None),
