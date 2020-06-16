@@ -180,14 +180,7 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     let mut config_file = Config::read_from(&config_path)?;
     verify_caller(&config_file)?;
 
-    let mut count_to_encrypt = 0usize;
-    let mut databases = config_file.get_databases()?;
-    for database in &mut databases {
-        if !database.encrypted() {
-            count_to_encrypt += 1;
-            database.encrypt()?;
-        }
-    }
+    let count_to_encrypt = config_file.count_databases() - config_file.count_encrypted_databases();
     if count_to_encrypt == 0 {
         warn!(
             LOGGER.get().unwrap(),
@@ -195,6 +188,11 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         );
         return Ok(());
     }
+    let mut databases = config_file.get_databases()?;
+    databases.iter_mut().try_for_each(|d| -> Result<_> {
+        d.encrypt()?;
+        Ok(())
+    })?;
     debug!(
         LOGGER.get().unwrap(),
         "{} database key(s) to encrypt", count_to_encrypt
@@ -230,14 +228,7 @@ fn decrypt<T: AsRef<Path>>(config_path: T) -> Result<()> {
     let mut config_file = Config::read_from(&config_path)?;
     verify_caller(&config_file)?;
 
-    let mut count_to_decrypt = 0usize;
-    let mut databases: Vec<_> = config_file.get_databases()?;
-    for database in &mut databases {
-        if database.encrypted() {
-            count_to_decrypt += 1;
-            database.decrypt()?;
-        }
-    }
+    let count_to_decrypt = config_file.count_encrypted_databases();
     if count_to_decrypt == 0 {
         warn!(
             LOGGER.get().unwrap(),
@@ -245,6 +236,11 @@ fn decrypt<T: AsRef<Path>>(config_path: T) -> Result<()> {
         );
         return Ok(());
     }
+    let mut databases: Vec<_> = config_file.get_databases()?;
+    databases.iter_mut().try_for_each(|d| -> Result<_> {
+        d.decrypt()?;
+        Ok(())
+    })?;
     debug!(
         LOGGER.get().unwrap(),
         "{} database key(s) to decrypt", count_to_decrypt

@@ -73,6 +73,14 @@ impl Config {
         Ok(databases)
     }
 
+    pub fn count_databases(&self) -> usize {
+        self.databases.len()
+    }
+
+    pub fn count_encrypted_databases(&self) -> usize {
+        self.databases.iter().filter(|d| d.encrypted()).count()
+    }
+
     pub fn clear_databases(&mut self) {
         self.databases.clear();
     }
