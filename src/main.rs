@@ -141,12 +141,12 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         Config::new()
     };
 
-    let to_encrypt = args
+    let encrypted = args
         .subcommand_matches("configure")
         .and_then(|m| m.value_of("encrypt"))
         .map(|m| !m.is_empty())
         .unwrap_or_else(|| false);
-    if to_encrypt {
+    if encrypted {
         if config_file.encryption.is_empty() {
             let encryption_profile = args
                 .subcommand_matches("configure")
@@ -170,7 +170,7 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         "Saving configuration to {}",
         config_path.as_ref().to_string_lossy()
     );
-    config_file.add_database(Database::new(database_id, id_seckey, group, to_encrypt)?)?;
+    config_file.add_database(Database::new(database_id, id_seckey, group)?, encrypted)?;
     config_file.write_to(&config_path)?;
 
     Ok(())
@@ -180,22 +180,27 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     let mut config_file = Config::read_from(&config_path)?;
     verify_caller(&config_file)?;
 
-    let count_to_encrypt = config_file.count_databases() - config_file.count_encrypted_databases();
-    if count_to_encrypt == 0 {
+    let count_databases_to_encrypt =
+        config_file.count_databases() - config_file.count_encrypted_databases();
+    let count_callers_to_encrypt =
+        config_file.count_callers() - config_file.count_encrypted_callers();
+    if count_databases_to_encrypt == 0 && count_callers_to_encrypt == 0 {
         warn!(
             LOGGER.get().unwrap(),
-            "Database keys have already been encrypted"
+            "Database and callers profiles have already been encrypted"
         );
         return Ok(());
     }
-    let mut databases = config_file.get_databases()?;
-    databases.iter_mut().try_for_each(|d| -> Result<_> {
-        d.encrypt()?;
-        Ok(())
-    })?;
-    debug!(
+
+    let databases = config_file.get_databases()?;
+    info!(
         LOGGER.get().unwrap(),
-        "{} database key(s) to encrypt", count_to_encrypt
+        "{} database profile(s) to encrypt", count_databases_to_encrypt
+    );
+    let callers = config_file.get_callers()?;
+    info!(
+        LOGGER.get().unwrap(),
+        "{} caller profile(s) to encrypt", count_databases_to_encrypt
     );
 
     if config_file.encryption.is_empty() {
@@ -216,7 +221,11 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
 
     config_file.clear_databases();
     for database in databases {
-        config_file.add_database(database)?;
+        config_file.add_database(database, true)?;
+    }
+    config_file.clear_callers();
+    for caller in callers {
+        config_file.add_caller(caller, true)?;
     }
 
     config_file.write_to(config_path)?;
@@ -228,29 +237,35 @@ fn decrypt<T: AsRef<Path>>(config_path: T) -> Result<()> {
     let mut config_file = Config::read_from(&config_path)?;
     verify_caller(&config_file)?;
 
-    let count_to_decrypt = config_file.count_encrypted_databases();
-    if count_to_decrypt == 0 {
+    let count_databases_to_decrypt = config_file.count_encrypted_databases();
+    let count_callers_to_decrypt = config_file.count_encrypted_callers();
+    if count_databases_to_decrypt == 0 && count_callers_to_decrypt == 0 {
         warn!(
             LOGGER.get().unwrap(),
-            "Database keys have already been decrypted"
+            "Database and callers profiles have already been decrypted"
         );
         return Ok(());
     }
-    let mut databases: Vec<_> = config_file.get_databases()?;
-    databases.iter_mut().try_for_each(|d| -> Result<_> {
-        d.decrypt()?;
-        Ok(())
-    })?;
-    debug!(
+    let databases: Vec<_> = config_file.get_databases()?;
+    info!(
         LOGGER.get().unwrap(),
-        "{} database key(s) to decrypt", count_to_decrypt
+        "{} database profile(s) to decrypt", count_databases_to_decrypt
+    );
+    let callers: Vec<_> = config_file.get_callers()?;
+    info!(
+        LOGGER.get().unwrap(),
+        "{} caller profile(s) to decrypt", count_callers_to_decrypt
     );
 
     config_file.encryption.clear();
 
     config_file.clear_databases();
     for database in databases {
-        config_file.add_database(database)?;
+        config_file.add_database(database, false)?;
+    }
+    config_file.clear_callers();
+    for caller in callers {
+        config_file.add_caller(caller, false)?;
     }
 
     config_file.write_to(config_path)?;
@@ -286,15 +301,35 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
                     None
                 },
             };
-            if config_file.callers.is_none() {
-                config_file.callers = Some(Vec::new());
+            let encrypted = subcommand
+                .subcommand_matches("add")
+                .and_then(|m| m.value_of("encrypt"))
+                .map(|m| !m.is_empty())
+                .unwrap_or_else(|| false);
+            if encrypted {
+                if config_file.encryption.is_empty() {
+                    let encryption_profile = subcommand
+                        .subcommand_matches("add")
+                        .and_then(|m| m.value_of("encrypt"))
+                        .ok_or_else(|| {
+                            anyhow!(
+                                "No encryption profile defined, must specify one via command line"
+                            )
+                        })?;
+                    let encryption_profile = Encryption::from_str(&encryption_profile)?;
+                    config_file.encryption.push(encryption_profile);
+                } else {
+                    info!(
+                        LOGGER.get().unwrap(),
+                        "Using existing encryption profile found in configuration file"
+                    );
+                }
             }
-            let callers = config_file.callers.as_mut().unwrap();
-            callers.push(caller);
+            config_file.add_caller(caller, encrypted)?;
             config_file.write_to(config_path)
         }
         ("clear", _) => {
-            config_file.callers = None;
+            config_file.clear_callers();
             config_file.write_to(config_path)
         }
         _ => Err(anyhow!("No subcommand selected")),
@@ -302,44 +337,40 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
 }
 
 fn verify_caller(config: &Config) -> Result<()> {
-    if let Some(ref callers) = config.callers {
-        if callers.is_empty() {
-            return Ok(());
-        }
-        let pid =
-            get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;
-        debug!(LOGGER.get().unwrap(), "PID: {}", pid);
-        let system = System::new_all();
-        let proc = system
-            .get_process(pid)
-            .ok_or_else(|| anyhow!("Failed to retrieve information of current process"))?;
-        let ppid = proc
-            .parent()
-            .ok_or_else(|| anyhow!("Failed to retrieve parent PID"))?;
-        debug!(LOGGER.get().unwrap(), "PPID: {}", ppid);
-        let pproc = system
-            .get_process(ppid)
-            .ok_or_else(|| anyhow!("Failed to retrieve parent process information"))?;
-        let ppath = pproc.exe().to_string_lossy();
-        #[cfg(unix)]
-        let matching_callers: Vec<_> = callers
-            .iter()
-            .filter(|caller| {
-                caller.path == ppath
-                    && caller.uid.map(|id| id == proc.uid).unwrap_or(true)
-                    && caller.gid.map(|id| id == proc.gid).unwrap_or(true)
-            })
-            .collect();
-        #[cfg(windows)]
-        let matching_callers: Vec<_> = callers
-            .iter()
-            .filter(|caller| caller.path == ppath)
-            .collect();
-        if matching_callers.is_empty() {
-            Err(anyhow!("You are not allowed to use this program"))
-        } else {
-            Ok(())
-        }
+    if config.count_callers() == 0 {
+        return Ok(());
+    }
+    let pid = get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;
+    debug!(LOGGER.get().unwrap(), "PID: {}", pid);
+    let system = System::new_all();
+    let proc = system
+        .get_process(pid)
+        .ok_or_else(|| anyhow!("Failed to retrieve information of current process"))?;
+    let ppid = proc
+        .parent()
+        .ok_or_else(|| anyhow!("Failed to retrieve parent PID"))?;
+    debug!(LOGGER.get().unwrap(), "PPID: {}", ppid);
+    let pproc = system
+        .get_process(ppid)
+        .ok_or_else(|| anyhow!("Failed to retrieve parent process information"))?;
+    let ppath = pproc.exe().to_string_lossy();
+    let callers = config.get_callers()?;
+    #[cfg(unix)]
+    let matching_callers: Vec<_> = callers
+        .iter()
+        .filter(|caller| {
+            caller.path == ppath
+                && caller.uid.map(|id| id == proc.uid).unwrap_or(true)
+                && caller.gid.map(|id| id == proc.gid).unwrap_or(true)
+        })
+        .collect();
+    #[cfg(windows)]
+    let matching_callers: Vec<_> = callers
+        .iter()
+        .filter(|caller| caller.path == ppath)
+        .collect();
+    if matching_callers.is_empty() {
+        Err(anyhow!("You are not allowed to use this program"))
     } else {
         Ok(())
     }

@@ -10,7 +10,7 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde::{de, Deserialize, Serialize};
 use slog::*;
-use std::cell::{Ref, RefCell};
+use std::cell::RefCell;
 use std::fs;
 use std::io::prelude::*;
 use std::path::Path;
@@ -33,10 +33,15 @@ type AesNonce = GenericArray<u8, typenum::U12>;
 
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct Config {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     databases: Vec<Database>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub callers: Option<Vec<Caller>>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    encrypted_databases: Vec<EncryptedProfile>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    callers: Vec<Caller>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    encrypted_callers: Vec<EncryptedProfile>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub encryption: Vec<Encryption>,
 }
 
@@ -62,37 +67,69 @@ impl Config {
 
     pub fn get_databases(&self) -> Result<Vec<Database>> {
         let mut databases: Vec<_> = self.databases.clone();
-        for database in &mut databases {
-            if database.encrypted() {
-                database.key =
-                    self.base64_decrypt(database.key.as_ref(), database.nonce.as_ref().unwrap())?;
-                database.pkey =
-                    self.base64_decrypt(database.pkey.as_ref(), database.nonce.as_ref().unwrap())?;
-            }
+        for encrypted_database in &self.encrypted_databases {
+            let database_json =
+                self.base64_decrypt(&encrypted_database.data, &encrypted_database.nonce)?;
+            databases.push(serde_json::from_str(database_json.as_str())?);
         }
         Ok(databases)
     }
 
     pub fn count_databases(&self) -> usize {
-        self.databases.len()
+        self.databases.len() + self.encrypted_databases.len()
     }
 
     pub fn count_encrypted_databases(&self) -> usize {
-        self.databases.iter().filter(|d| d.encrypted()).count()
+        self.encrypted_databases.len()
     }
 
     pub fn clear_databases(&mut self) {
         self.databases.clear();
+        self.encrypted_databases.clear();
     }
 
-    pub fn add_database(&mut self, mut database: Database) -> Result<()> {
-        if database.encrypted() {
-            database.key =
-                self.base64_encrypt(database.key.as_ref(), database.nonce.as_ref().unwrap())?;
-            database.pkey =
-                self.base64_encrypt(database.pkey.as_ref(), database.nonce.as_ref().unwrap())?;
+    pub fn add_database(&mut self, database: Database, encrypted: bool) -> Result<()> {
+        if encrypted {
+            let (data, nonce) = self.base64_encrypt(&serde_json::to_string(&database)?)?;
+            self.encrypted_databases
+                .push(EncryptedProfile { data, nonce });
+        } else {
+            self.databases.push(database);
         }
-        self.databases.push(database);
+        Ok(())
+    }
+
+    pub fn get_callers(&self) -> Result<Vec<Caller>> {
+        let mut callers: Vec<_> = self.callers.clone();
+        for encrypted_caller in &self.encrypted_callers {
+            callers.push(serde_json::from_str(
+                &self.base64_decrypt(&encrypted_caller.data, &encrypted_caller.nonce)?,
+            )?);
+        }
+        Ok(callers)
+    }
+
+    pub fn count_callers(&self) -> usize {
+        self.callers.len() + self.encrypted_callers.len()
+    }
+
+    pub fn count_encrypted_callers(&self) -> usize {
+        self.encrypted_callers.len()
+    }
+
+    pub fn clear_callers(&mut self) {
+        self.callers.clear();
+        self.encrypted_callers.clear();
+    }
+
+    pub fn add_caller(&mut self, caller: Caller, encrypted: bool) -> Result<()> {
+        if encrypted {
+            let (data, nonce) = self.base64_encrypt(&serde_json::to_string(&caller)?)?;
+            self.encrypted_callers
+                .push(EncryptedProfile { data, nonce });
+        } else {
+            self.callers.push(caller);
+        }
         Ok(())
     }
 
@@ -110,15 +147,14 @@ impl Config {
         let key = self.get_encryption_key()?;
         let aead = Aes256Gcm::new(key.as_ref().unwrap());
 
-        let encrypted = base64::decode(data)?;
         let decrypted = aead
-            .decrypt(nonce, encrypted.as_ref())
+            .decrypt(nonce, base64::decode(data)?.as_ref())
             .map_err(|_| anyhow!("Failed to decrypt database key"))?;
-        Ok(base64::encode(&decrypted))
+        Ok(String::from_utf8(decrypted)?)
     }
 
     #[cfg(not(feature = "encryption"))]
-    fn base64_encrypt(&self, _data: &str, _nonce: &AesNonce) -> Result<String> {
+    fn base64_encrypt(&self, _data: &str) -> Result<(String, AesNonce)> {
         error!(
             crate::LOGGER.get().unwrap(),
             "Enable encryption to use this feature"
@@ -127,19 +163,19 @@ impl Config {
     }
 
     #[cfg(feature = "encryption")]
-    fn base64_encrypt(&self, data: &str, nonce: &AesNonce) -> Result<String> {
+    fn base64_encrypt(&self, data: &str) -> Result<(String, AesNonce)> {
+        let nonce = aes_nonce();
         let key = self.get_encryption_key()?;
         let aead = Aes256Gcm::new(key.as_ref().unwrap());
 
-        let decrypted = base64::decode(data)?;
         let encrypted = aead
-            .encrypt(nonce, decrypted.as_ref())
+            .encrypt(&nonce, data.as_bytes())
             .map_err(|_| anyhow!("Failed to encrypt database key"))?;
-        Ok(base64::encode(&encrypted))
+        Ok((base64::encode(&encrypted), nonce))
     }
 
-    #[allow(dead_code)]
-    fn get_encryption_key(&self) -> Result<Ref<Option<AesKey>>> {
+    #[cfg(feature = "encryption")]
+    fn get_encryption_key(&self) -> Result<std::cell::Ref<Option<AesKey>>> {
         if self.encryption.is_empty() {
             return Err(anyhow!("No encryption profile found"));
         }
@@ -227,33 +263,33 @@ fn aes_nonce() -> AesNonce {
     nonce
 }
 
-fn opt_aes_nonce_serialize<S>(nonce: &Option<AesNonce>, serializer: S) -> Result<S::Ok, S::Error>
+fn aes_nonce_serialize<S>(nonce: &AesNonce, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
-    match nonce {
-        Some(nonce) => {
-            let nonce = base64::encode(nonce);
-            serializer.serialize_str(&nonce)
-        }
-        None => serializer.serialize_none(),
-    }
+    let nonce = base64::encode(nonce);
+    serializer.serialize_str(&nonce)
 }
 
-fn opt_aes_nonce_deserialize<'de, D>(deserializer: D) -> Result<Option<AesNonce>, D::Error>
+fn aes_nonce_deserialize<'de, D>(deserializer: D) -> Result<AesNonce, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
-    let nonce: Option<&str> = de::Deserialize::deserialize(deserializer)?;
-    match nonce {
-        Some(nonce) => {
-            let nonce = base64::decode(nonce).map_err(|_| {
-                de::Error::invalid_value(de::Unexpected::Str(nonce), &"base64 encoded data")
-            })?;
-            Ok(Some(AesNonce::clone_from_slice(nonce.as_ref())))
-        }
-        None => Ok(None),
-    }
+    let nonce: &str = de::Deserialize::deserialize(deserializer)?;
+    let nonce = base64::decode(nonce).map_err(|_| {
+        de::Error::invalid_value(de::Unexpected::Str(nonce), &"base64 encoded data")
+    })?;
+    Ok(AesNonce::clone_from_slice(nonce.as_ref()))
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct EncryptedProfile {
+    data: String,
+    #[serde(
+        serialize_with = "aes_nonce_serialize",
+        deserialize_with = "aes_nonce_deserialize"
+    )]
+    nonce: AesNonce,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -261,13 +297,6 @@ pub struct Database {
     pub id: String,
     pub key: String,
     pub pkey: String,
-    #[serde(
-        default,
-        serialize_with = "opt_aes_nonce_serialize",
-        deserialize_with = "opt_aes_nonce_deserialize",
-        skip_serializing_if = "Option::is_none"
-    )]
-    nonce: Option<AesNonce>,
     pub group: String,
     pub group_uuid: String,
 }
@@ -277,67 +306,21 @@ impl Database {
         id: String,
         id_seckey: crypto_box::SecretKey,
         group: crate::keepassxc::Group,
-        encrypted: bool,
     ) -> Result<Self> {
-        if encrypted && cfg!(not(feature = "encryption")) {
-            return Err(anyhow!("Encryption is not enabled in this build"));
-        }
         let id_seckey_b64 = base64::encode(id_seckey.to_bytes());
         let id_pubkey = id_seckey.public_key();
         let id_pubkey_b64 = base64::encode(id_pubkey.as_bytes());
-        let nonce = if encrypted {
-            #[cfg(not(feature = "encryption"))]
-            {
-                None
-            }
-            #[cfg(feature = "encryption")]
-            {
-                Some(aes_nonce())
-            }
-        } else {
-            None
-        };
         Ok(Self {
             id,
             key: id_seckey_b64,
             pkey: id_pubkey_b64,
-            nonce,
             group: group.name,
             group_uuid: group.uuid,
         })
     }
-
-    pub fn encrypted(&self) -> bool {
-        self.nonce.is_some()
-    }
-
-    #[cfg(feature = "encryption")]
-    pub fn encrypt(&mut self) -> Result<()> {
-        if self.nonce.is_some() {
-            return Ok(());
-        }
-        self.nonce = Some(aes_nonce());
-        Ok(())
-    }
-
-    #[cfg(not(feature = "encryption"))]
-    pub fn encrypt(&mut self) -> Result<()> {
-        Err(anyhow!("Encryption is not enabled in this build"))
-    }
-
-    #[cfg(feature = "encryption")]
-    pub fn decrypt(&mut self) -> Result<()> {
-        self.nonce = None;
-        Ok(())
-    }
-
-    #[cfg(not(feature = "encryption"))]
-    pub fn decrypt(&mut self) -> Result<()> {
-        Err(anyhow!("Encryption is not enabled in this build"))
-    }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Caller {
     pub path: String,
     #[serde(skip_serializing_if = "Option::is_none")]

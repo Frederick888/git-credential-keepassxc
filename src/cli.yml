@@ -33,20 +33,20 @@ subcommands:
         - encrypt:
             long: encrypt
             help: |-
-              Encrypt KeePassXC keys.
+              Encrypt KeePassXC database profiles.
               Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
               Leave empty ("") to use existing encryption profile in configuration file.
             takes_value: true
   - encrypt:
-      about: Encrypt existing database key(s)
+      about: Encrypt existing database and caller profile(s)
       args:
         - ENCRYPTION_PROFILE:
             help: |-
-              Encrypt KeePassXC keys.
+              Encrypt KeePassXC database profiles.
               Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
             index: 1
   - decrypt:
-      about: Decrypt existing database key(s)
+      about: Decrypt existing database and caller profile(s)
   - caller:
       about: Limit caller process
       subcommands:
@@ -64,6 +64,13 @@ subcommands:
               - gid:
                   long: gid
                   help: GID of the caller process (ignored under Windows)
+                  takes_value: true
+              - encrypt:
+                  long: encrypt
+                  help: |-
+                    Encrypt caller profiles.
+                    Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
+                    Leave empty ("") to use existing encryption profile in configuration file.
                   takes_value: true
         - clear:
             about: Clear the allowed callers list
