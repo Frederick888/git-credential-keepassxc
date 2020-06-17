@@ -15,6 +15,7 @@ use std::fs;
 use std::io::prelude::*;
 use std::path::Path;
 use std::str::FromStr;
+use std::string::ToString;
 #[cfg(feature = "yubikey")]
 use yubico_manager::config as yubico_config;
 #[cfg(feature = "yubikey")]
@@ -42,7 +43,9 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     encrypted_callers: Vec<EncryptedProfile>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub encryption: Vec<Encryption>,
+    encryptions: Vec<Encryption>,
+    #[serde(skip)]
+    encryption_key: RefCell<Option<AesKey>>,
 }
 
 impl Config {
@@ -143,14 +146,23 @@ impl Config {
     }
 
     #[cfg(feature = "encryption")]
-    fn base64_decrypt(&self, data: &str, nonce: &AesNonce) -> Result<String> {
-        let key = self.get_encryption_key()?;
-        let aead = Aes256Gcm::new(key.as_ref().unwrap());
+    fn base64_decrypt_with(data: &str, key: &AesKey, nonce: &AesNonce) -> Result<Vec<u8>> {
+        let aead = Aes256Gcm::new(key);
 
         let decrypted = aead
             .decrypt(nonce, base64::decode(data)?.as_ref())
             .map_err(|_| anyhow!("Failed to decrypt database key"))?;
-        Ok(String::from_utf8(decrypted)?)
+        Ok(decrypted)
+    }
+
+    #[cfg(feature = "encryption")]
+    fn base64_decrypt(&self, data: &str, nonce: &AesNonce) -> Result<String> {
+        let key = self.get_encryption_key()?;
+        Ok(String::from_utf8(Self::base64_decrypt_with(
+            data,
+            key.as_ref().unwrap(),
+            nonce,
+        )?)?)
     }
 
     #[cfg(not(feature = "encryption"))]
@@ -163,31 +175,158 @@ impl Config {
     }
 
     #[cfg(feature = "encryption")]
+    fn base64_encrypt_with(data: &[u8], key: &AesKey, nonce: &AesNonce) -> Result<String> {
+        let aead = Aes256Gcm::new(key);
+
+        let encrypted = aead
+            .encrypt(&nonce, data)
+            .map_err(|_| anyhow!("Failed to encrypt database key"))?;
+        Ok(base64::encode(&encrypted))
+    }
+
+    #[cfg(feature = "encryption")]
     fn base64_encrypt(&self, data: &str) -> Result<(String, AesNonce)> {
         let nonce = aes_nonce();
         let key = self.get_encryption_key()?;
-        let aead = Aes256Gcm::new(key.as_ref().unwrap());
+        Ok((
+            Self::base64_encrypt_with(data.as_bytes(), key.as_ref().unwrap(), &nonce)?,
+            nonce,
+        ))
+    }
 
-        let encrypted = aead
-            .encrypt(&nonce, data.as_bytes())
-            .map_err(|_| anyhow!("Failed to encrypt database key"))?;
-        Ok((base64::encode(&encrypted), nonce))
+    #[cfg(feature = "encryption")]
+    fn get_encryption(&self, strict: bool) -> Result<&Encryption> {
+        if self.encryptions.is_empty() {
+            return Err(anyhow!("No encryption profile found"));
+        }
+        let mut strict_match = false;
+        let mut profile: &Encryption = &self.encryptions[0];
+        #[cfg(feature = "yubikey")]
+        {
+            let curr_serial = {
+                let mut yubi = Yubico::new();
+                let device = yubi.find_yubikey()?;
+                let config = yubico_config::Config::default()
+                    .set_vendor_id(device.vendor_id)
+                    .set_product_id(device.product_id);
+                let curr_serial = yubi.read_serial_number(config);
+                debug!(
+                    crate::LOGGER.get().unwrap(),
+                    "Found YubiKey, vendor: {}, product: {}, serial: {:?}",
+                    device.vendor_id,
+                    device.product_id,
+                    curr_serial
+                );
+                curr_serial
+            };
+            match curr_serial {
+                Ok(curr_serial) => {
+                    for encryption in &self.encryptions {
+                        match encryption {
+                            Encryption::ChallengeResponse { serial, .. } => {
+                                if *serial.as_ref().unwrap() == curr_serial {
+                                    strict_match = true;
+                                    profile = encryption;
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(_) => {
+                    warn!(
+                        crate::LOGGER.get().unwrap(),
+                        "Failed to read YubiKey serial number"
+                    );
+                }
+            }
+        }
+
+        if strict && !strict_match {
+            return Err(anyhow!(
+                "Failed to find a strictly matching encryption profile"
+            ));
+        }
+        Ok(profile)
+    }
+
+    pub fn count_encryptions(&self) -> usize {
+        self.encryptions.len()
+    }
+
+    #[cfg(not(feature = "encryption"))]
+    pub fn add_encryption(&mut self, _profile: &str) -> Result<()> {
+        error!(
+            crate::LOGGER.get().unwrap(),
+            "Enable encryption to use this feature"
+        );
+        Err(anyhow!("Encryption is not enabled in this build"))
+    }
+
+    #[cfg(feature = "encryption")]
+    pub fn add_encryption(&mut self, profile: &str) -> Result<()> {
+        // strict match, so that we can add multiple tokens
+        let existing_profile = self.get_encryption(true);
+        // avoid adding multiple encryption profiles for single underlying hardward/etc
+        match existing_profile {
+            // user would like to use an existing profile
+            Ok(_) if profile.is_empty() => Ok(()),
+            // existing profile found, user specifies the same method but without any details
+            Ok(existing_profile) if existing_profile.method() == profile => Ok(()),
+            // existing profile found, same specs
+            Ok(existing_profile) if existing_profile.to_string() == profile => Ok(()),
+            // existing profile found, different specs
+            Ok(_) => Err(anyhow!(
+                "Encryption profile for this (hardward) token already exists"
+            )),
+            Err(_) => {
+                // no existing profiles
+                let profile = Encryption::from_str(profile)?;
+                if self.encryptions.is_empty() {
+                    // no other encryption profiles, generate a new key
+                    *self.encryption_key.borrow_mut() = Some(aes_key());
+                }
+                match &profile {
+                    #[cfg(feature = "yubikey")]
+                    Encryption::ChallengeResponse { key, nonce, .. } => {
+                        // extract key from an existing profile
+                        *key.borrow_mut() = {
+                            let key = self.get_encryption_key()?;
+                            let response = profile.get_response()?;
+                            Self::base64_encrypt_with(
+                                key.as_ref().unwrap(),
+                                response.as_ref().unwrap(),
+                                nonce,
+                            )?
+                        };
+                        self.encryptions.push(profile);
+                        return Ok(());
+                    }
+                    #[cfg(not(feature = "yubikey"))]
+                    Encryption::ChallengeResponse { .. } => {
+                        error!(
+                            crate::LOGGER.get().unwrap(),
+                            "Challenge-response encryption profile found however YubiKey is not enabled in this build"
+                        );
+                        return Err(anyhow!("YubiKey is not enabled in this build"));
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn clear_encryptions(&mut self) {
+        self.encryptions.clear();
     }
 
     #[cfg(feature = "encryption")]
     fn get_encryption_key(&self) -> Result<std::cell::Ref<Option<AesKey>>> {
-        if self.encryption.is_empty() {
-            return Err(anyhow!("No encryption profile found"));
+        if self.encryption_key.borrow().is_some() {
+            return Ok(self.encryption_key.borrow());
         }
-        let encryption = &self.encryption[0];
+        let encryption = self.get_encryption(false)?;
         match encryption {
             #[cfg(not(feature = "yubikey"))]
-            Encryption::ChallengeResponse {
-                serial: _,
-                slot: _,
-                challenge: _,
-                response: _,
-            } => {
+            Encryption::ChallengeResponse { .. } => {
                 error!(
                     crate::LOGGER.get().unwrap(),
                     "Challenge-response encryption profile found however YubiKey is not enabled in this build"
@@ -195,64 +334,26 @@ impl Config {
                 Err(anyhow!("YubiKey is not enabled in this build"))
             }
             #[cfg(feature = "yubikey")]
-            Encryption::ChallengeResponse {
-                serial,
-                slot,
-                challenge,
-                response,
-            } => {
-                if response.borrow().is_some() {
-                    return Ok(response.borrow());
-                }
-                info!(
-                    crate::LOGGER.get().unwrap(),
-                    "Current challenge-response encryption profile was created using YubiKey {}",
-                    serial.unwrap_or_default()
-                );
-                let mut yubi = Yubico::new();
-                let device = yubi.find_yubikey()?;
-                let config = yubico_config::Config::default()
-                    .set_vendor_id(device.vendor_id)
-                    .set_product_id(device.product_id);
-                let curr_serial = yubi.read_serial_number(config).ok();
-                if curr_serial.is_none() {
-                    warn!(
-                        crate::LOGGER.get().unwrap(),
-                        "Failed to read YubiKey serial number"
-                    );
-                }
-                debug!(
-                    crate::LOGGER.get().unwrap(),
-                    "Found YubiKey, vendor: {}, product: {}, serial: {}",
-                    device.vendor_id,
-                    device.product_id,
-                    curr_serial.unwrap_or_default()
-                );
-                let slot = if *slot == 1 {
-                    yubico_config::Slot::Slot1
-                } else {
-                    yubico_config::Slot::Slot2
-                };
-                debug!(crate::LOGGER.get().unwrap(), "Using YubiKey {:?}", slot);
-                let config = yubico_config::Config::default()
-                    .set_vendor_id(device.vendor_id)
-                    .set_product_id(device.product_id)
-                    .set_variable_size(true)
-                    .set_mode(yubico_config::Mode::Sha1)
-                    .set_slot(slot);
-                debug!(crate::LOGGER.get().unwrap(), "Challenge: {}", challenge);
-                info!(
-                    crate::LOGGER.get().unwrap(),
-                    "Retrieving response, tap your YubiKey if needed"
-                );
-                let hmac_result = yubi.challenge_response_hmac(challenge.as_bytes(), config)?;
-                let mut hmac_response = vec![0u8; AES_KEY_LENGTH];
-                hmac_response.splice(..YUBIKEY_RESPONSE_LENGTH, (*hmac_result).iter().cloned());
-                *response.borrow_mut() = Some(AesKey::clone_from_slice(&hmac_response));
-                Ok(response.borrow())
+            Encryption::ChallengeResponse { key, nonce, .. } => {
+                let response = encryption.get_response()?;
+                *self.encryption_key.borrow_mut() =
+                    Some(AesKey::clone_from_slice(&Self::base64_decrypt_with(
+                        key.borrow().as_str(),
+                        response.as_ref().unwrap(),
+                        nonce,
+                    )?));
+                Ok(self.encryption_key.borrow())
             }
         }
     }
+}
+
+#[cfg(feature = "encryption")]
+fn aes_key() -> AesKey {
+    let mut rng = rand::thread_rng();
+    let mut key = AesKey::clone_from_slice(&[0u8; AES_KEY_LENGTH]);
+    rng.fill(key.as_mut_slice());
+    key
 }
 
 #[cfg(feature = "encryption")]
@@ -330,15 +431,89 @@ pub struct Caller {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum Encryption {
+enum Encryption {
     ChallengeResponse {
         #[serde(skip_serializing_if = "Option::is_none")]
         serial: Option<u32>,
         slot: u8,
         challenge: String,
+        key: RefCell<String>,
+        #[serde(
+            serialize_with = "aes_nonce_serialize",
+            deserialize_with = "aes_nonce_deserialize"
+        )]
+        nonce: AesNonce,
         #[serde(skip)]
         response: RefCell<Option<AesKey>>,
     },
+}
+
+impl Encryption {
+    fn method(&self) -> String {
+        match self {
+            Encryption::ChallengeResponse { .. } => "challenge-response".to_owned(),
+        }
+    }
+
+    #[allow(dead_code)]
+    #[cfg(feature = "encryption")]
+    fn get_response(&self) -> Result<std::cell::Ref<Option<AesKey>>> {
+        match self {
+            #[cfg(not(feature = "yubikey"))]
+            Encryption::ChallengeResponse { .. } => {
+                error!(
+                    crate::LOGGER.get().unwrap(),
+                    "YubiKey is not enabled in this build"
+                );
+                Err(anyhow!("YubiKey is not enabled in this build"))
+            }
+            #[cfg(feature = "yubikey")]
+            Encryption::ChallengeResponse {
+                slot,
+                challenge,
+                response,
+                ..
+            } => {
+                if response.borrow().is_some() {
+                    return Ok(response.borrow());
+                }
+                let mut yubi = Yubico::new();
+                let device = yubi.find_yubikey()?;
+                let slot = if *slot == 1 {
+                    yubico_config::Slot::Slot1
+                } else {
+                    yubico_config::Slot::Slot2
+                };
+                debug!(crate::LOGGER.get().unwrap(), "Using YubiKey {:?}", slot);
+                let config = yubico_config::Config::default()
+                    .set_vendor_id(device.vendor_id)
+                    .set_product_id(device.product_id)
+                    .set_variable_size(true)
+                    .set_mode(yubico_config::Mode::Sha1)
+                    .set_slot(slot);
+                debug!(crate::LOGGER.get().unwrap(), "Challenge: {}", challenge);
+                info!(
+                    crate::LOGGER.get().unwrap(),
+                    "Retrieving response, tap your YubiKey if needed"
+                );
+                let hmac_result = yubi.challenge_response_hmac(challenge.as_bytes(), config)?;
+                let mut hmac_response = vec![0u8; AES_KEY_LENGTH];
+                hmac_response.splice(..YUBIKEY_RESPONSE_LENGTH, (*hmac_result).iter().cloned());
+                *response.borrow_mut() = Some(AesKey::clone_from_slice(&hmac_response));
+                Ok(response.borrow())
+            }
+        }
+    }
+}
+
+impl ToString for Encryption {
+    fn to_string(&self) -> String {
+        match self {
+            Encryption::ChallengeResponse {
+                slot, challenge, ..
+            } => format!("{}:{}:{}", self.method(), slot, challenge),
+        }
+    }
 }
 
 impl FromStr for Encryption {
@@ -392,6 +567,8 @@ impl FromStr for Encryption {
                     serial,
                     slot,
                     challenge,
+                    key: RefCell::new(String::new()),
+                    nonce: aes_nonce(),
                     response: RefCell::new(None),
                 })
             }

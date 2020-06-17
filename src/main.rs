@@ -5,7 +5,7 @@ mod utils;
 
 use anyhow::{anyhow, Result};
 use clap::{App, ArgMatches};
-use config::{Caller, Config, Database, Encryption};
+use config::{Caller, Config, Database};
 use crypto_box::{PublicKey, SecretKey};
 use git::GitCredentialMessage;
 use keepassxc::{messages::*, Group};
@@ -141,27 +141,19 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         Config::new()
     };
 
-    let encrypted = args
+    let encryption = args
         .subcommand_matches("configure")
-        .and_then(|m| m.value_of("encrypt"))
-        .map(|m| !m.is_empty())
-        .unwrap_or_else(|| false);
-    if encrypted {
-        if config_file.encryption.is_empty() {
-            let encryption_profile = args
-                .subcommand_matches("configure")
-                .and_then(|m| m.value_of("encrypt"))
-                .ok_or_else(|| {
-                    anyhow!("No encryption profile defined, must specify one via command line")
-                })?;
-            let encryption_profile = Encryption::from_str(&encryption_profile)?;
-            config_file.encryption.push(encryption_profile);
-        } else {
-            info!(
-                LOGGER.get().unwrap(),
-                "Using existing encryption profile found in configuration file"
-            );
+        .and_then(|m| m.value_of("encrypt"));
+    if let Some(encryption) = encryption {
+        if config_file.count_encryptions() > 0 && !encryption.is_empty() {
+            print!("Make sure you've plugged in the (hardware) token you'd like to use, then press Enter to continue... ");
+            std::io::stdout().flush()?;
+            std::io::stdin().read_line(&mut String::new())?;
         }
+        // this will error if an existing encryption profile has already been configured for the
+        // underlying hardware/etc
+        // in this case user should decrypt the configuration first
+        config_file.add_encryption(encryption)?;
     }
 
     // save new config
@@ -170,7 +162,10 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         "Saving configuration to {}",
         config_path.as_ref().to_string_lossy()
     );
-    config_file.add_database(Database::new(database_id, id_seckey, group)?, encrypted)?;
+    config_file.add_database(
+        Database::new(database_id, id_seckey, group)?,
+        encryption.is_some(),
+    )?;
     config_file.write_to(&config_path)?;
 
     Ok(())
@@ -192,6 +187,11 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         return Ok(());
     }
 
+    if config_file.count_encrypted_databases() > 0 || config_file.count_encrypted_callers() > 0 {
+        println!("Encrypted database or caller profile(s) found, will decrypt them first");
+    }
+
+    // decryption may happen here
     let databases = config_file.get_databases()?;
     info!(
         LOGGER.get().unwrap(),
@@ -203,20 +203,19 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         "{} caller profile(s) to encrypt", count_databases_to_encrypt
     );
 
-    if config_file.encryption.is_empty() {
-        let encryption_profile = args
-            .subcommand_matches("encrypt")
-            .and_then(|m| m.value_of("ENCRYPTION_PROFILE"))
-            .ok_or_else(|| {
-                anyhow!("No encryption profile defined, must specify one via command line")
-            })?;
-        let encryption_profile = Encryption::from_str(&encryption_profile)?;
-        config_file.encryption.push(encryption_profile);
-    } else {
-        info!(
-            LOGGER.get().unwrap(),
-            "Using existing encryption profile found in configuration file"
-        );
+    let encryption = args
+        .subcommand_matches("encrypt")
+        .and_then(|m| m.value_of("ENCRYPTION_PROFILE"));
+    if let Some(encryption) = encryption {
+        if config_file.count_encryptions() > 0 && !encryption.is_empty() {
+            print!("Make sure you've plugged in the (hardware) token you'd like to use, then press Enter to continue... ");
+            std::io::stdout().flush()?;
+            std::io::stdin().read_line(&mut String::new())?;
+        }
+        // this will error if an existing encryption profile has already been configured for the
+        // underlying hardware/etc
+        // in this case user should decrypt the configuration first
+        config_file.add_encryption(encryption)?;
     }
 
     config_file.clear_databases();
@@ -257,7 +256,7 @@ fn decrypt<T: AsRef<Path>>(config_path: T) -> Result<()> {
         "{} caller profile(s) to decrypt", count_callers_to_decrypt
     );
 
-    config_file.encryption.clear();
+    config_file.clear_encryptions();
 
     config_file.clear_databases();
     for database in databases {
@@ -301,31 +300,21 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
                     None
                 },
             };
-            let encrypted = subcommand
+            let encryption = subcommand
                 .subcommand_matches("add")
-                .and_then(|m| m.value_of("encrypt"))
-                .map(|m| !m.is_empty())
-                .unwrap_or_else(|| false);
-            if encrypted {
-                if config_file.encryption.is_empty() {
-                    let encryption_profile = subcommand
-                        .subcommand_matches("add")
-                        .and_then(|m| m.value_of("encrypt"))
-                        .ok_or_else(|| {
-                            anyhow!(
-                                "No encryption profile defined, must specify one via command line"
-                            )
-                        })?;
-                    let encryption_profile = Encryption::from_str(&encryption_profile)?;
-                    config_file.encryption.push(encryption_profile);
-                } else {
-                    info!(
-                        LOGGER.get().unwrap(),
-                        "Using existing encryption profile found in configuration file"
-                    );
+                .and_then(|m| m.value_of("encrypt"));
+            if let Some(encryption) = encryption {
+                if config_file.count_encryptions() > 0 && !encryption.is_empty() {
+                    print!("Make sure you've plugged in the (hardware) token you'd like to use, then press Enter to continue... ");
+                    std::io::stdout().flush()?;
+                    std::io::stdin().read_line(&mut String::new())?;
                 }
+                // this will error if an existing encryption profile has already been configured for the
+                // underlying hardware/etc
+                // in this case user should decrypt the configuration first
+                config_file.add_encryption(encryption)?;
             }
-            config_file.add_caller(caller, encrypted)?;
+            config_file.add_caller(caller, encryption.is_some())?;
             config_file.write_to(config_path)
         }
         ("clear", _) => {
