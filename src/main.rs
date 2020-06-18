@@ -111,6 +111,25 @@ fn associated_databases<T: AsRef<str>>(client_id: T, config: &Config) -> Result<
     }
 }
 
+fn handle_secondary_encryption(config_file: &mut Config) -> Result<()> {
+    println!("There are existing encryption profile(s). If you'd like to reuse an existing encryption key, plug in the corresponding (hardware) token.");
+    print!("Press Enter to continue... ");
+    std::io::stdout().flush()?;
+    std::io::stdin().read_line(&mut String::new())?;
+    if config_file.get_encryption_key().is_err() {
+        warn!(
+            crate::LOGGER.get().unwrap(),
+            "Failed to extract encryption key from existing profiles"
+        );
+        println!("Failed to extract the encryption key! Continue to configure a new (hardware) token using a DIFFERENT encryption key.")
+    }
+    println!("Now make sure you've plugged in the (hardware) token you'd like to use.");
+    print!("Press Enter to continue... ");
+    std::io::stdout().flush()?;
+    std::io::stdin().read_line(&mut String::new())?;
+    Ok(())
+}
+
 fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     // start session
     let (client_id, session_seckey, _) = start_session()?;
@@ -146,9 +165,7 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         .and_then(|m| m.value_of("encrypt"));
     if let Some(encryption) = encryption {
         if config_file.count_encryptions() > 0 && !encryption.is_empty() {
-            print!("Make sure you've plugged in the (hardware) token you'd like to use, then press Enter to continue... ");
-            std::io::stdout().flush()?;
-            std::io::stdin().read_line(&mut String::new())?;
+            handle_secondary_encryption(&mut config_file)?;
         }
         // this will error if an existing encryption profile has already been configured for the
         // underlying hardware/etc
@@ -205,21 +222,7 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
 
     if let Some(encryption) = encryption {
         if config_file.count_encryptions() > 0 && !encryption.is_empty() {
-            println!("There are existing encryption profile(s). If you'd like to reuse an existing encryption key, plug in the corresponding (hardware) token.");
-            print!("Press Enter to continue... ");
-            std::io::stdout().flush()?;
-            std::io::stdin().read_line(&mut String::new())?;
-            if config_file.get_encryption_key().is_err() {
-                warn!(
-                    crate::LOGGER.get().unwrap(),
-                    "Failed to extract encryption key from existing profiles"
-                );
-                println!("Failed to extract the encryption key! Continue to configure a new (hardware) token using a DIFFERENT encryption key.")
-            }
-            println!("Now make sure you've plugged in the (hardware) token you'd like to use.");
-            print!("Press Enter to continue... ");
-            std::io::stdout().flush()?;
-            std::io::stdin().read_line(&mut String::new())?;
+            handle_secondary_encryption(&mut config_file)?;
         }
         // this will error if an existing encryption profile has already been configured for the
         // underlying hardware/etc
