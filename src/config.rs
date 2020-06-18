@@ -6,7 +6,6 @@ use std::cell::RefCell;
 use std::fs;
 use std::io::prelude::*;
 use std::path::Path;
-use std::str::FromStr;
 use std::string::ToString;
 #[cfg(feature = "encryption")]
 use {
@@ -14,19 +13,21 @@ use {
     aes_gcm::Aes256Gcm,
     rand::distributions::Alphanumeric,
     rand::{thread_rng, Rng},
+    std::str::FromStr,
 };
 #[cfg(feature = "yubikey")]
 use {yubico_manager::config as yubico_config, yubico_manager::Yubico};
 
-#[cfg(feature = "yubikey")]
+#[cfg(feature = "encryption")]
 const YUBIKEY_CHALLENGE_LENGTH: usize = 64usize;
-#[cfg(feature = "yubikey")]
+#[cfg(feature = "encryption")]
 const YUBIKEY_RESPONSE_LENGTH: usize = 20usize;
 #[cfg(feature = "encryption")]
 const AES_KEY_LENGTH: usize = 32usize;
-type AesKey = GenericArray<u8, typenum::U32>;
 #[cfg(feature = "encryption")]
 const AES_NONCE_LENGTH: usize = 12usize;
+
+type AesKey = GenericArray<u8, typenum::U32>;
 type AesNonce = GenericArray<u8, typenum::U12>;
 
 #[derive(Serialize, Deserialize, Default, Debug)]
@@ -273,43 +274,25 @@ impl Config {
         }
         let mut strict_match = false;
         let mut profile: &Encryption = &self.encryptions[0];
-        #[cfg(feature = "yubikey")]
-        {
-            let curr_serial = {
-                let mut yubi = Yubico::new();
-                let device = yubi.find_yubikey()?;
-                let config = yubico_config::Config::default()
-                    .set_vendor_id(device.vendor_id)
-                    .set_product_id(device.product_id);
-                let curr_serial = yubi.read_serial_number(config);
-                debug!(
-                    crate::LOGGER.get().unwrap(),
-                    "Found YubiKey, vendor: {}, product: {}, serial: {:?}",
-                    device.vendor_id,
-                    device.product_id,
-                    curr_serial
-                );
-                curr_serial
-            };
-            match curr_serial {
-                Ok(curr_serial) => {
-                    for encryption in &self.encryptions {
-                        match encryption {
-                            Encryption::ChallengeResponse { serial, .. } => {
-                                if *serial.as_ref().unwrap() == curr_serial {
-                                    strict_match = true;
-                                    profile = encryption;
-                                }
+        let curr_serial = read_yubikey_serial();
+        match curr_serial {
+            Ok(curr_serial) => {
+                for encryption in &self.encryptions {
+                    match encryption {
+                        Encryption::ChallengeResponse { serial, .. } => {
+                            if *serial.as_ref().unwrap() == curr_serial {
+                                strict_match = true;
+                                profile = encryption;
                             }
                         }
                     }
                 }
-                Err(_) => {
-                    warn!(
-                        crate::LOGGER.get().unwrap(),
-                        "Failed to read YubiKey serial number"
-                    );
-                }
+            }
+            Err(_) => {
+                warn!(
+                    crate::LOGGER.get().unwrap(),
+                    "Failed to read YubiKey serial number"
+                );
             }
         }
 
@@ -439,6 +422,28 @@ where
         de::Error::invalid_value(de::Unexpected::Str(nonce), &"base64 encoded data")
     })?;
     Ok(AesNonce::clone_from_slice(nonce.as_ref()))
+}
+
+#[cfg(feature = "encryption")]
+fn read_yubikey_serial() -> Result<u32> {
+    #[cfg(not(feature = "yubikey"))]
+    {
+        error!(
+            crate::LOGGER.get().unwrap(),
+            "YubiKey is not enabled in this build"
+        );
+        Err(anyhow!("YubiKey is not enabled in this build"))
+    }
+    #[cfg(feature = "yubikey")]
+    {
+        let mut yubi = Yubico::new();
+        let device = yubi.find_yubikey()?;
+        let config = yubico_config::Config::default()
+            .set_vendor_id(device.vendor_id)
+            .set_product_id(device.product_id);
+        yubi.read_serial_number(config)
+            .map_err(|_| anyhow!("Failed to read YubiKey serial number"))
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -573,6 +578,7 @@ impl ToString for Encryption {
     }
 }
 
+#[cfg(feature = "encryption")]
 impl FromStr for Encryption {
     type Err = anyhow::Error;
 
@@ -582,22 +588,8 @@ impl FromStr for Encryption {
             return Err(anyhow!("Failed to parse encryption profile: {}", profile));
         }
         match profile_vec[0] {
-            #[cfg(not(feature = "yubikey"))]
             "challenge-response" => {
-                error!(
-                    crate::LOGGER.get().unwrap(),
-                    "YubiKey is not enabled in this build"
-                );
-                Err(anyhow!("YubiKey is not enabled in this build"))
-            }
-            #[cfg(feature = "yubikey")]
-            "challenge-response" => {
-                let mut yubi = Yubico::new();
-                let device = yubi.find_yubikey()?;
-                let config = yubico_config::Config::default()
-                    .set_vendor_id(device.vendor_id)
-                    .set_product_id(device.product_id);
-                let serial = yubi.read_serial_number(config).ok();
+                let serial = read_yubikey_serial().ok();
                 if serial.is_none() {
                     warn!(
                         crate::LOGGER.get().unwrap(),
