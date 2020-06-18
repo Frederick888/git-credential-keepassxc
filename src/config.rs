@@ -18,9 +18,9 @@ use {
 #[cfg(feature = "yubikey")]
 use {yubico_manager::config as yubico_config, yubico_manager::Yubico};
 
-#[cfg(feature = "encryption")]
+#[cfg(any(feature = "encryption", feature = "yubikey"))]
 const YUBIKEY_CHALLENGE_LENGTH: usize = 64usize;
-#[cfg(feature = "encryption")]
+#[cfg(all(feature = "encryption", feature = "yubikey"))]
 const YUBIKEY_RESPONSE_LENGTH: usize = 20usize;
 #[cfg(feature = "encryption")]
 const AES_KEY_LENGTH: usize = 32usize;
