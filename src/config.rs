@@ -182,6 +182,7 @@ impl Config {
             self.encrypted_callers
                 .push(EncryptedProfile { data, nonce });
         }
+        self.callers.clear();
         Ok(result)
     }
 
