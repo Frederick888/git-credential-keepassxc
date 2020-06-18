@@ -33,6 +33,9 @@ cache:
   directories:
     - $HOME/AppData/Local/Temp/chocolatey
     - /C/tools/msys64
+    - /C/Users/travis/.cargo/registry
+    - /C/Users/travis/.cache/sccache
+    - target
 
 before_install:
   - |-
