@@ -193,7 +193,7 @@ pub fn get_client_box(
 
 type NonceType = generic_array::GenericArray<u8, generic_array::typenum::U24>;
 
-pub fn generate_nonce() -> (NonceType, String) {
+pub fn nacl_nonce() -> (NonceType, String) {
     let mut rng = *get_rng().borrow_mut();
     let nonce = crypto_box::generate_nonce(&mut rng);
     let nonce_b64 = base64::encode(&nonce);

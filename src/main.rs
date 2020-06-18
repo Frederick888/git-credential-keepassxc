@@ -34,7 +34,7 @@ fn start_session() -> Result<(String, SecretKey, PublicKey)> {
     let session_pubkey = session_seckey.public_key();
 
     // temporary client id
-    let (_, client_id) = generate_nonce();
+    let (_, client_id) = nacl_nonce();
 
     // exchange public keys
     let host_pubkey = exchange_keys(&client_id, &session_pubkey)?;
@@ -76,9 +76,9 @@ fn read_git_request() -> Result<(GitCredentialMessage, String)> {
     Ok((git_req, url))
 }
 
-fn associated_databases<T: AsRef<str>>(client_id: T, config: &Config) -> Result<Vec<&Database>> {
+fn associated_databases<T: AsRef<str>>(client_id: T, config: &Config) -> Result<Vec<Database>> {
     let databases: Vec<_> = config
-        .databases
+        .get_databases()?
         .iter()
         .filter(|ref db| {
             let taso_req = TestAssociateRequest::new(db.id.as_str(), db.pkey.as_str());
@@ -95,6 +95,7 @@ fn associated_databases<T: AsRef<str>>(client_id: T, config: &Config) -> Result<
                 false
             }
         })
+        .cloned()
         .collect();
     if databases.is_empty() {
         Err(anyhow!(
@@ -110,6 +111,25 @@ fn associated_databases<T: AsRef<str>>(client_id: T, config: &Config) -> Result<
     }
 }
 
+fn handle_secondary_encryption(config_file: &mut Config) -> Result<()> {
+    println!("There are existing encryption profile(s). If you'd like to reuse an existing encryption key, plug in the corresponding (hardware) token.");
+    print!("Press Enter to continue... ");
+    std::io::stdout().flush()?;
+    std::io::stdin().read_line(&mut String::new())?;
+    if config_file.get_encryption_key().is_err() {
+        warn!(
+            crate::LOGGER.get().unwrap(),
+            "Failed to extract encryption key from existing profiles"
+        );
+        println!("Failed to extract the encryption key! Continue to configure a new (hardware) token using a DIFFERENT encryption key.")
+    }
+    println!("Now make sure you've plugged in the (hardware) token you'd like to use.");
+    print!("Press Enter to continue... ");
+    std::io::stdout().flush()?;
+    std::io::stdin().read_line(&mut String::new())?;
+    Ok(())
+}
+
 fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     // start session
     let (client_id, session_seckey, _) = start_session()?;
@@ -117,9 +137,7 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
 
     // generate permanent client key for future authentication
     let id_seckey = generate_secret_key();
-    let id_seckey_b64 = base64::encode(id_seckey.to_bytes());
     let id_pubkey = id_seckey.public_key();
-    let id_pubkey_b64 = base64::encode(id_pubkey.as_bytes());
 
     let aso_req = AssociateRequest::new(&session_pubkey, &id_pubkey);
     let aso_resp = aso_req.send(&client_id)?;
@@ -142,20 +160,113 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         Config::new()
     };
 
+    let encryption = args
+        .subcommand_matches("configure")
+        .and_then(|m| m.value_of("encrypt"));
+    if let Some(encryption) = encryption {
+        if config_file.count_encryptions() > 0 && !encryption.is_empty() {
+            handle_secondary_encryption(&mut config_file)?;
+        }
+        // this will error if an existing encryption profile has already been configured for the
+        // underlying hardware/etc
+        // in this case user should decrypt the configuration first
+        config_file.add_encryption(encryption)?;
+    }
+
     // save new config
     info!(
         LOGGER.get().unwrap(),
         "Saving configuration to {}",
         config_path.as_ref().to_string_lossy()
     );
-    config_file.databases.push(Database {
-        id: database_id,
-        key: id_seckey_b64,
-        pkey: id_pubkey_b64,
-        group: group.name,
-        group_uuid: group.uuid,
-    });
+    config_file.add_database(
+        Database::new(database_id, id_seckey, group)?,
+        encryption.is_some(),
+    )?;
     config_file.write_to(&config_path)?;
+
+    Ok(())
+}
+
+fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
+    let mut config_file = Config::read_from(&config_path)?;
+    verify_caller(&config_file)?;
+
+    let encryption = args
+        .subcommand_matches("encrypt")
+        .and_then(|m| m.value_of("ENCRYPTION_PROFILE"));
+
+    let count_databases_to_encrypt =
+        config_file.count_databases() - config_file.count_encrypted_databases();
+    let count_callers_to_encrypt =
+        config_file.count_callers() - config_file.count_encrypted_callers();
+    if count_databases_to_encrypt == 0
+        && count_callers_to_encrypt == 0
+        && encryption.map(|m| m.is_empty()).unwrap_or_else(|| true)
+    {
+        warn!(
+            LOGGER.get().unwrap(),
+            "Database and callers profiles have already been encrypted"
+        );
+        return Ok(());
+    }
+
+    info!(
+        LOGGER.get().unwrap(),
+        "{} database profile(s) to encrypt", count_databases_to_encrypt
+    );
+    info!(
+        LOGGER.get().unwrap(),
+        "{} caller profile(s) to encrypt", count_databases_to_encrypt
+    );
+
+    if let Some(encryption) = encryption {
+        if config_file.count_encryptions() > 0 && !encryption.is_empty() {
+            handle_secondary_encryption(&mut config_file)?;
+        }
+        // this will error if an existing encryption profile has already been configured for the
+        // underlying hardware/etc
+        // in this case user should decrypt the configuration first
+        config_file.add_encryption(encryption)?;
+    }
+
+    config_file.encrypt_databases()?;
+    config_file.encrypt_callers()?;
+
+    config_file.write_to(config_path)?;
+
+    Ok(())
+}
+
+fn decrypt<T: AsRef<Path>>(config_path: T) -> Result<()> {
+    let mut config_file = Config::read_from(&config_path)?;
+    verify_caller(&config_file)?;
+
+    let count_databases_to_decrypt = config_file.count_encrypted_databases();
+    let count_callers_to_decrypt = config_file.count_encrypted_callers();
+    if count_databases_to_decrypt == 0 && count_callers_to_decrypt == 0 {
+        warn!(
+            LOGGER.get().unwrap(),
+            "Database and callers profiles have already been decrypted"
+        );
+        return Ok(());
+    }
+    info!(
+        LOGGER.get().unwrap(),
+        "{} database profile(s) to decrypt", count_databases_to_decrypt
+    );
+    info!(
+        LOGGER.get().unwrap(),
+        "{} caller profile(s) to decrypt", count_callers_to_decrypt
+    );
+
+    config_file.decrypt_databases()?;
+    config_file.decrypt_callers()?;
+    if config_file.count_encrypted_databases() == 0 && config_file.count_encrypted_callers() == 0 {
+        config_file.clear_encryptions();
+    }
+
+    config_file.write_to(config_path)?;
 
     Ok(())
 }
@@ -188,15 +299,20 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
                     None
                 },
             };
-            if config_file.callers.is_none() {
-                config_file.callers = Some(Vec::new());
+            let encryption = subcommand
+                .subcommand_matches("add")
+                .and_then(|m| m.value_of("encrypt"));
+            if let Some(encryption) = encryption {
+                // this will error if an existing encryption profile has already been configured for the
+                // underlying hardware/etc
+                // in this case user should decrypt the configuration first
+                config_file.add_encryption(encryption)?;
             }
-            let callers = config_file.callers.as_mut().unwrap();
-            callers.push(caller);
+            config_file.add_caller(caller, encryption.is_some())?;
             config_file.write_to(config_path)
         }
         ("clear", _) => {
-            config_file.callers = None;
+            config_file.clear_callers();
             config_file.write_to(config_path)
         }
         _ => Err(anyhow!("No subcommand selected")),
@@ -204,44 +320,40 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
 }
 
 fn verify_caller(config: &Config) -> Result<()> {
-    if let Some(ref callers) = config.callers {
-        if callers.is_empty() {
-            return Ok(());
-        }
-        let pid =
-            get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;
-        debug!(LOGGER.get().unwrap(), "PID: {}", pid);
-        let system = System::new_all();
-        let proc = system
-            .get_process(pid)
-            .ok_or_else(|| anyhow!("Failed to retrieve information of current process"))?;
-        let ppid = proc
-            .parent()
-            .ok_or_else(|| anyhow!("Failed to retrieve parent PID"))?;
-        debug!(LOGGER.get().unwrap(), "PPID: {}", ppid);
-        let pproc = system
-            .get_process(ppid)
-            .ok_or_else(|| anyhow!("Failed to retrieve parent process information"))?;
-        let ppath = pproc.exe().to_string_lossy();
-        #[cfg(unix)]
-        let matching_callers: Vec<_> = callers
-            .iter()
-            .filter(|caller| {
-                caller.path == ppath
-                    && caller.uid.map(|id| id == proc.uid).unwrap_or(true)
-                    && caller.gid.map(|id| id == proc.gid).unwrap_or(true)
-            })
-            .collect();
-        #[cfg(windows)]
-        let matching_callers: Vec<_> = callers
-            .iter()
-            .filter(|caller| caller.path == ppath)
-            .collect();
-        if matching_callers.is_empty() {
-            Err(anyhow!("You are not allowed to use this program"))
-        } else {
-            Ok(())
-        }
+    if config.count_callers() == 0 {
+        return Ok(());
+    }
+    let pid = get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;
+    debug!(LOGGER.get().unwrap(), "PID: {}", pid);
+    let system = System::new_all();
+    let proc = system
+        .get_process(pid)
+        .ok_or_else(|| anyhow!("Failed to retrieve information of current process"))?;
+    let ppid = proc
+        .parent()
+        .ok_or_else(|| anyhow!("Failed to retrieve parent PID"))?;
+    debug!(LOGGER.get().unwrap(), "PPID: {}", ppid);
+    let pproc = system
+        .get_process(ppid)
+        .ok_or_else(|| anyhow!("Failed to retrieve parent process information"))?;
+    let ppath = pproc.exe().to_string_lossy();
+    let callers = config.get_callers()?;
+    #[cfg(unix)]
+    let matching_callers: Vec<_> = callers
+        .iter()
+        .filter(|caller| {
+            caller.path == ppath
+                && caller.uid.map(|id| id == proc.uid).unwrap_or(true)
+                && caller.gid.map(|id| id == proc.gid).unwrap_or(true)
+        })
+        .collect();
+    #[cfg(windows)]
+    let matching_callers: Vec<_> = callers
+        .iter()
+        .filter(|caller| caller.path == ppath)
+        .collect();
+    if matching_callers.is_empty() {
+        Err(anyhow!("You are not allowed to use this program"))
     } else {
         Ok(())
     }
@@ -417,12 +529,13 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
             return Ok(());
         }
 
-        if config.databases.len() > 1 {
+        let databases = config.get_databases()?;
+        if databases.len() > 1 {
             // how do I know which database it's from?
             error!(LOGGER.get().unwrap(), "Trying to update an existing login when multiple databases are configured, this is not implemented yet");
             unimplemented!();
         }
-        let database = config.databases.first().unwrap();
+        let database = databases.first().unwrap();
         SetLoginRequest::new(
             &url,
             &url,
@@ -438,13 +551,14 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
             LOGGER.get().unwrap(),
             "No existing logins found, gonna create a new one"
         );
-        if config.databases.len() > 1 {
+        let databases = config.get_databases()?;
+        if databases.len() > 1 {
             warn!(
                 LOGGER.get().unwrap(),
                 "More than 1 databases configured, gonna save the new login in the first database"
             );
         }
-        let database = config.databases.first().unwrap();
+        let database = databases.first().unwrap();
         SetLoginRequest::new(
             &url,
             &url,
@@ -569,6 +683,8 @@ fn real_main() -> Result<()> {
     debug!(LOGGER.get().unwrap(), "Subcommand: {}", subcommand);
     match subcommand {
         "configure" => configure(config_path, &args),
+        "encrypt" => encrypt(config_path, &args),
+        "decrypt" => decrypt(config_path),
         "caller" => caller(config_path, &args),
         "get" => get_logins(config_path),
         "store" => store_login(config_path),
