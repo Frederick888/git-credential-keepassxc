@@ -1,13 +1,5 @@
 use aes_gcm::aead::generic_array::{typenum, GenericArray};
-#[cfg(feature = "encryption")]
-use aes_gcm::aead::{Aead, NewAead};
-#[cfg(feature = "encryption")]
-use aes_gcm::Aes256Gcm;
 use anyhow::{anyhow, Result};
-#[cfg(feature = "encryption")]
-use rand::distributions::Alphanumeric;
-#[cfg(feature = "encryption")]
-use rand::{thread_rng, Rng};
 use serde::{de, Deserialize, Serialize};
 use slog::*;
 use std::cell::RefCell;
@@ -16,10 +8,15 @@ use std::io::prelude::*;
 use std::path::Path;
 use std::str::FromStr;
 use std::string::ToString;
+#[cfg(feature = "encryption")]
+use {
+    aes_gcm::aead::{Aead, NewAead},
+    aes_gcm::Aes256Gcm,
+    rand::distributions::Alphanumeric,
+    rand::{thread_rng, Rng},
+};
 #[cfg(feature = "yubikey")]
-use yubico_manager::config as yubico_config;
-#[cfg(feature = "yubikey")]
-use yubico_manager::Yubico;
+use {yubico_manager::config as yubico_config, yubico_manager::Yubico};
 
 #[cfg(feature = "yubikey")]
 const YUBIKEY_CHALLENGE_LENGTH: usize = 64usize;
@@ -357,7 +354,6 @@ impl Config {
                 // no existing profiles
                 let profile = Encryption::from_str(profile)?;
                 match &profile {
-                    #[cfg(feature = "yubikey")]
                     Encryption::ChallengeResponse { key, nonce, .. } => {
                         // extract key from an existing profile
                         *key.borrow_mut() = {
@@ -380,14 +376,6 @@ impl Config {
                         self.encryptions.push(profile);
                         return Ok(());
                     }
-                    #[cfg(not(feature = "yubikey"))]
-                    Encryption::ChallengeResponse { .. } => {
-                        error!(
-                            crate::LOGGER.get().unwrap(),
-                            "Challenge-response encryption profile found however YubiKey is not enabled in this build"
-                        );
-                        return Err(anyhow!("YubiKey is not enabled in this build"));
-                    }
                 }
             }
         }
@@ -404,15 +392,6 @@ impl Config {
         }
         let encryption = self.get_encryption(false)?;
         match encryption {
-            #[cfg(not(feature = "yubikey"))]
-            Encryption::ChallengeResponse { .. } => {
-                error!(
-                    crate::LOGGER.get().unwrap(),
-                    "Challenge-response encryption profile found however YubiKey is not enabled in this build"
-                );
-                Err(anyhow!("YubiKey is not enabled in this build"))
-            }
-            #[cfg(feature = "yubikey")]
             Encryption::ChallengeResponse { key, nonce, .. } => {
                 let response = encryption.get_response()?;
                 *self.encryption_key.borrow_mut() =
@@ -534,7 +513,6 @@ impl Encryption {
         }
     }
 
-    #[allow(dead_code)]
     #[cfg(feature = "encryption")]
     fn get_response(&self) -> Result<std::cell::Ref<Option<AesKey>>> {
         match self {
