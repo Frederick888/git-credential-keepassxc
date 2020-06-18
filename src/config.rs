@@ -72,8 +72,16 @@ impl Config {
         let mut databases: Vec<_> = self.databases.clone();
         for encrypted_database in &self.encrypted_databases {
             let database_json =
-                self.base64_decrypt(&encrypted_database.data, &encrypted_database.nonce)?;
-            databases.push(serde_json::from_str(database_json.as_str())?);
+                self.base64_decrypt(&encrypted_database.data, &encrypted_database.nonce);
+            if let Ok(database_json) = database_json {
+                databases.push(serde_json::from_str(database_json.as_str())?);
+            } else {
+                warn!(
+                    crate::LOGGER.get().unwrap(),
+                    "Failed to decrypt database profile {}.. (omitted)",
+                    &encrypted_database.data[..8]
+                );
+            }
         }
         Ok(databases)
     }
@@ -84,11 +92,6 @@ impl Config {
 
     pub fn count_encrypted_databases(&self) -> usize {
         self.encrypted_databases.len()
-    }
-
-    pub fn clear_databases(&mut self) {
-        self.databases.clear();
-        self.encrypted_databases.clear();
     }
 
     pub fn add_database(&mut self, database: Database, encrypted: bool) -> Result<()> {
@@ -102,9 +105,47 @@ impl Config {
         Ok(())
     }
 
+    pub fn encrypt_databases(&mut self) -> Result<usize> {
+        let result = self.databases.len();
+        for database in &self.databases {
+            let (data, nonce) = self.base64_encrypt(&serde_json::to_string(database)?)?;
+            self.encrypted_databases
+                .push(EncryptedProfile { data, nonce });
+        }
+        self.databases.clear();
+        Ok(result)
+    }
+
+    pub fn decrypt_databases(&mut self) -> Result<usize> {
+        // TODO: check if Vec::drain_filter() can help simplifies this when it's stabilised
+        let mut decrypted_database_indices = Vec::new();
+        for (idx, encrypted_database) in self.encrypted_databases.iter().enumerate() {
+            if let Ok(json) =
+                self.base64_decrypt(&encrypted_database.data, &encrypted_database.nonce)
+            {
+                if let Ok(database) = serde_json::from_str(&json) {
+                    self.databases.push(database);
+                    decrypted_database_indices.push(idx);
+                    continue;
+                }
+            }
+            warn!(
+                crate::LOGGER.get().unwrap(),
+                "Failed to decrypt database profile {}.. (omitted)",
+                &encrypted_database.data[..8]
+            );
+        }
+        for idx in decrypted_database_indices.iter().rev() {
+            self.encrypted_databases.remove(*idx);
+        }
+
+        Ok(decrypted_database_indices.len())
+    }
+
     pub fn get_callers(&self) -> Result<Vec<Caller>> {
         let mut callers: Vec<_> = self.callers.clone();
         for encrypted_caller in &self.encrypted_callers {
+            // must decrypt all encrypted callers
             callers.push(serde_json::from_str(
                 &self.base64_decrypt(&encrypted_caller.data, &encrypted_caller.nonce)?,
             )?);
@@ -134,6 +175,40 @@ impl Config {
             self.callers.push(caller);
         }
         Ok(())
+    }
+
+    pub fn encrypt_callers(&mut self) -> Result<usize> {
+        let result = self.callers.len();
+        for caller in &self.callers {
+            let (data, nonce) = self.base64_encrypt(&serde_json::to_string(caller)?)?;
+            self.encrypted_callers
+                .push(EncryptedProfile { data, nonce });
+        }
+        Ok(result)
+    }
+
+    pub fn decrypt_callers(&mut self) -> Result<usize> {
+        // TODO: check if Vec::drain_filter() can help simplifies this when it's stabilised
+        let mut decrypted_caller_indices = Vec::new();
+        for (idx, encrypted_caller) in self.encrypted_callers.iter().enumerate() {
+            if let Ok(json) = self.base64_decrypt(&encrypted_caller.data, &encrypted_caller.nonce) {
+                if let Ok(caller) = serde_json::from_str(&json) {
+                    self.callers.push(caller);
+                    decrypted_caller_indices.push(idx);
+                    continue;
+                }
+            }
+            warn!(
+                crate::LOGGER.get().unwrap(),
+                "Failed to decrypt caller profile {}.. (omitted)",
+                &encrypted_caller.data[..8]
+            );
+        }
+        for idx in decrypted_caller_indices.iter().rev() {
+            self.encrypted_callers.remove(*idx);
+        }
+
+        Ok(decrypted_caller_indices.len())
     }
 
     #[cfg(not(feature = "encryption"))]
@@ -281,19 +356,23 @@ impl Config {
             Err(_) => {
                 // no existing profiles
                 let profile = Encryption::from_str(profile)?;
-                if self.encryptions.is_empty() {
-                    // no other encryption profiles, generate a new key
-                    *self.encryption_key.borrow_mut() = Some(aes_key());
-                }
                 match &profile {
                     #[cfg(feature = "yubikey")]
                     Encryption::ChallengeResponse { key, nonce, .. } => {
                         // extract key from an existing profile
                         *key.borrow_mut() = {
-                            let key = self.get_encryption_key()?;
+                            let encryption_key =
+                                self.get_encryption_key().or_else(|_| -> Result<_> {
+                                    warn!(
+                                        crate::LOGGER.get().unwrap(),
+                                        "Failed to extract encryption key from existing profiles, gonna create a new one"
+                                    );
+                                    *self.encryption_key.borrow_mut() = Some(aes_key());
+                                    Ok(self.encryption_key.borrow())
+                                })?;
                             let response = profile.get_response()?;
                             Self::base64_encrypt_with(
-                                key.as_ref().unwrap(),
+                                encryption_key.as_ref().unwrap(),
                                 response.as_ref().unwrap(),
                                 nonce,
                             )?

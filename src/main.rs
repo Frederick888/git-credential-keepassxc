@@ -192,12 +192,10 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     }
 
     // decryption may happen here
-    let databases = config_file.get_databases()?;
     info!(
         LOGGER.get().unwrap(),
         "{} database profile(s) to encrypt", count_databases_to_encrypt
     );
-    let callers = config_file.get_callers()?;
     info!(
         LOGGER.get().unwrap(),
         "{} caller profile(s) to encrypt", count_databases_to_encrypt
@@ -218,14 +216,8 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         config_file.add_encryption(encryption)?;
     }
 
-    config_file.clear_databases();
-    for database in databases {
-        config_file.add_database(database, true)?;
-    }
-    config_file.clear_callers();
-    for caller in callers {
-        config_file.add_caller(caller, true)?;
-    }
+    config_file.encrypt_databases()?;
+    config_file.encrypt_callers()?;
 
     config_file.write_to(config_path)?;
 
@@ -245,26 +237,19 @@ fn decrypt<T: AsRef<Path>>(config_path: T) -> Result<()> {
         );
         return Ok(());
     }
-    let databases: Vec<_> = config_file.get_databases()?;
     info!(
         LOGGER.get().unwrap(),
         "{} database profile(s) to decrypt", count_databases_to_decrypt
     );
-    let callers: Vec<_> = config_file.get_callers()?;
     info!(
         LOGGER.get().unwrap(),
         "{} caller profile(s) to decrypt", count_callers_to_decrypt
     );
 
-    config_file.clear_encryptions();
-
-    config_file.clear_databases();
-    for database in databases {
-        config_file.add_database(database, false)?;
-    }
-    config_file.clear_callers();
-    for caller in callers {
-        config_file.add_caller(caller, false)?;
+    config_file.decrypt_databases()?;
+    config_file.decrypt_callers()?;
+    if config_file.count_encrypted_databases() == 0 && config_file.count_encrypted_callers() == 0 {
+        config_file.clear_encryptions();
     }
 
     config_file.write_to(config_path)?;
