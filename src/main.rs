@@ -300,11 +300,6 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
                 .subcommand_matches("add")
                 .and_then(|m| m.value_of("encrypt"));
             if let Some(encryption) = encryption {
-                if config_file.count_encryptions() > 0 && !encryption.is_empty() {
-                    print!("Make sure you've plugged in the (hardware) token you'd like to use, then press Enter to continue... ");
-                    std::io::stdout().flush()?;
-                    std::io::stdin().read_line(&mut String::new())?;
-                }
                 // this will error if an existing encryption profile has already been configured for the
                 // underlying hardware/etc
                 // in this case user should decrypt the configuration first
