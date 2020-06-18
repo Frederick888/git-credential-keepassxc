@@ -187,11 +187,6 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         return Ok(());
     }
 
-    if config_file.count_encrypted_databases() > 0 || config_file.count_encrypted_callers() > 0 {
-        println!("Encrypted database or caller profile(s) found, will decrypt them first");
-    }
-
-    // decryption may happen here
     info!(
         LOGGER.get().unwrap(),
         "{} database profile(s) to encrypt", count_databases_to_encrypt
