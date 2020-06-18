@@ -46,6 +46,27 @@ May 10 12:52:53.995 ERRO Request get-logins failed, Caused by: N/A, Message: Req
 $ git-credential-keepassxc caller clear
 ```
 
+## Encrypt KeePassXC keys using YubiKey
+
+By default the keys for authentication are stored in plaintext, which means it's possible for malware to extract the keys and request credentials from KeePassXC directly. This can be particularly dangerous if you've allowed clients to retrieve any credentials without confirmation.
+
+`git-credential-keepassxc` is capable of encrypting KeePassXC keys using YubiKey Challenge-Response. To enable this feature:
+
+```sh
+# enable YubiKey feature
+$ cargo install --features=yubikey git-credential-keepassxc
+# additionally if you use cargo-update
+$ cargo install-update-config --feature=yubikey git-credential-keepassxc
+# encrypt using YubiKey slot 2 and a randomly generated challenge
+$ git-credential-keepassxc encrypt challenge-response
+```
+
+To decrypt the keys and then disable this feature:
+
+```sh
+$ git-credential-keepassxc decrypt
+```
+
 ## Tip
 
 Although currently it's not possible to return entries only from the Git group, you may still want to hide specific ones from Git (for instance GitLab allows only access tokens to clone over HTTPS when 2FA is enabled, so your password may conflict with the token). This can be done by adding a magic attribute to those entries.
