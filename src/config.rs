@@ -368,6 +368,15 @@ impl Config {
         self.encryptions.clear();
     }
 
+    #[cfg(not(feature = "encryption"))]
+    pub fn get_encryption_key(&self) -> Result<std::cell::Ref<Option<AesKey>>> {
+        error!(
+            crate::LOGGER.get().unwrap(),
+            "Enable encryption to use this feature"
+        );
+        Err(anyhow!("Encryption is not enabled in this build"))
+    }
+
     #[cfg(feature = "encryption")]
     pub fn get_encryption_key(&self) -> Result<std::cell::Ref<Option<AesKey>>> {
         if self.encryption_key.borrow().is_some() {
