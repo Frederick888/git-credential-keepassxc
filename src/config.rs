@@ -369,7 +369,7 @@ impl Config {
     }
 
     #[cfg(feature = "encryption")]
-    fn get_encryption_key(&self) -> Result<std::cell::Ref<Option<AesKey>>> {
+    pub fn get_encryption_key(&self) -> Result<std::cell::Ref<Option<AesKey>>> {
         if self.encryption_key.borrow().is_some() {
             return Ok(self.encryption_key.borrow());
         }

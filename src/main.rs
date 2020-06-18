@@ -175,11 +175,18 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     let mut config_file = Config::read_from(&config_path)?;
     verify_caller(&config_file)?;
 
+    let encryption = args
+        .subcommand_matches("encrypt")
+        .and_then(|m| m.value_of("ENCRYPTION_PROFILE"));
+
     let count_databases_to_encrypt =
         config_file.count_databases() - config_file.count_encrypted_databases();
     let count_callers_to_encrypt =
         config_file.count_callers() - config_file.count_encrypted_callers();
-    if count_databases_to_encrypt == 0 && count_callers_to_encrypt == 0 {
+    if count_databases_to_encrypt == 0
+        && count_callers_to_encrypt == 0
+        && encryption.map(|m| m.is_empty()).unwrap_or_else(|| true)
+    {
         warn!(
             LOGGER.get().unwrap(),
             "Database and callers profiles have already been encrypted"
@@ -196,12 +203,21 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         "{} caller profile(s) to encrypt", count_databases_to_encrypt
     );
 
-    let encryption = args
-        .subcommand_matches("encrypt")
-        .and_then(|m| m.value_of("ENCRYPTION_PROFILE"));
     if let Some(encryption) = encryption {
         if config_file.count_encryptions() > 0 && !encryption.is_empty() {
-            print!("Make sure you've plugged in the (hardware) token you'd like to use, then press Enter to continue... ");
+            println!("There are existing encryption profile(s). If you'd like to reuse an existing encryption key, plug in the corresponding (hardware) token.");
+            print!("Press Enter to continue... ");
+            std::io::stdout().flush()?;
+            std::io::stdin().read_line(&mut String::new())?;
+            if config_file.get_encryption_key().is_err() {
+                warn!(
+                    crate::LOGGER.get().unwrap(),
+                    "Failed to extract encryption key from existing profiles"
+                );
+                println!("Failed to extract the encryption key! Continue to configure a new (hardware) token using a DIFFERENT encryption key.")
+            }
+            println!("Now make sure you've plugged in the (hardware) token you'd like to use.");
+            print!("Press Enter to continue... ");
             std::io::stdout().flush()?;
             std::io::stdin().read_line(&mut String::new())?;
         }
