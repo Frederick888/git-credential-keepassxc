@@ -16,7 +16,8 @@ travis-ci = { repository = "Frederick888/git-credential-keepassxc" }
 
 [features]
 default = []
-all = ["encryption", "yubikey"]
+all = ["notification", "encryption", "yubikey"]
+notification = ["notify-rust"]
 encryption = ["aes-gcm/aes"]
 yubikey = ["yubico_manager", "encryption"]
 
@@ -35,6 +36,7 @@ sysinfo = "0.14.1"
 directories-next = "1.0.1"
 yubico_manager = { version = "0.6.3", optional = true }
 aes-gcm = { version = "0.6.0", default-features = false }
+notify-rust = { version = "4.0.0", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 prctl = "1.0.0"

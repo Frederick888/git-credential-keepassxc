@@ -6,10 +6,35 @@ It communicates with KeePassXC using [keepassxc-protocol](https://github.com/kee
 
 ## How to install
 
+### Quick
+
 1. Install [Rust](https://www.rust-lang.org/) compiler via [rustup](https://rustup.rs/) or your favourite package manager
 0. Run `cargo install git-credential-keepassxc` (or `cargo install --git https://github.com/Frederick888/git-credential-keepassxc.git` for the latest development version)
 
 *Note:* Make sure `$CARGO_INSTALL_ROOT` is in your search path.
+
+### Optional features
+
+`git-credential-keepassxc` currently has got the following features that you can choose to opt in:
+
+| Feature | Description |
+| ------- | ----------- |
+| `all` | Enable all features |
+| `notification` | Desktop notifications, helpful if `git-credential-keepassxc` is used in scripts |
+| `yubikey` | Allow encrypting configuration file using YubiKey HMAC-SHA1 |
+
+It is suggested to use [cargo-update](https://crates.io/crates/cargo-update) to make the features you've enabled persistent across updates.
+
+```sh
+# install cargo-update first
+$ cargo install cargo-update
+# enable and persist features
+$ cargo install --features <FEATURE>... git-credential-keepassxc
+$ cargo install-update-config --feature <FEATURE>... git-credential-keepassxc
+
+# later when you update
+$ cargo install-update git-credential-keepassxc
+```
 
 ## Configuration
 
@@ -50,13 +75,9 @@ $ git-credential-keepassxc caller clear
 
 By default the keys for authentication are stored in plaintext, which means it's possible for malware to extract the keys and request credentials from KeePassXC directly. This can be particularly dangerous if you've allowed clients to retrieve any credentials without confirmation.
 
-`git-credential-keepassxc` is capable of encrypting KeePassXC keys using YubiKey Challenge-Response. To enable this feature:
+`git-credential-keepassxc` is capable of encrypting KeePassXC keys using YubiKey Challenge-Response. First make sure you've enabled `yubikey` feature, then:
 
 ```sh
-# enable YubiKey feature
-$ cargo install --features=yubikey git-credential-keepassxc
-# additionally if you use cargo-update
-$ cargo install-update-config --feature=yubikey git-credential-keepassxc
 # encrypt using YubiKey slot 2 and a randomly generated challenge
 $ git-credential-keepassxc encrypt challenge-response
 ```
@@ -66,6 +87,8 @@ To decrypt the keys and then disable this feature:
 ```sh
 $ git-credential-keepassxc decrypt
 ```
+
+For more details, see: [wiki/Encryption](https://github.com/Frederick888/git-credential-keepassxc/wiki/Encryption)
 
 ## Tip
 
