@@ -22,6 +22,7 @@ It communicates with KeePassXC using [keepassxc-protocol](https://github.com/kee
 | `all` | Enable all features |
 | `notification` | Desktop notifications, helpful if `git-credential-keepassxc` is used in scripts |
 | `yubikey` | Allow encrypting configuration file using YubiKey HMAC-SHA1 |
+| `strict-caller` | Enforce caller limiting when there are associated databases |
 
 It is suggested to use [cargo-update](https://crates.io/crates/cargo-update) to make the features you've enabled persistent across updates.
 
@@ -70,6 +71,8 @@ May 10 12:52:53.995 ERRO Request get-logins failed, Caused by: N/A, Message: Req
 # disable this function
 $ git-credential-keepassxc caller clear
 ```
+
+*Note:* If you've enabled `strict-caller`, you must add caller profiles before configuring databases, otherwise you won't be able to run `git-credential-keepassxc` afterwards.
 
 ## Encrypt KeePassXC keys using YubiKey
 

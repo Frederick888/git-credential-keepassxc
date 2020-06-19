@@ -307,7 +307,10 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
 }
 
 fn verify_caller(config: &Config) -> Result<Option<(usize, PathBuf)>> {
-    if config.count_callers() == 0 {
+    if config.count_callers() == 0
+        && (cfg!(not(feature = "strict-caller")) || config.count_databases() == 0)
+    {
+        info!("Caller verification skipped as no caller profiles defined and strict-caller disabled");
         return Ok(None);
     }
     let pid = get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;

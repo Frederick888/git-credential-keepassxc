@@ -16,7 +16,8 @@ travis-ci = { repository = "Frederick888/git-credential-keepassxc" }
 
 [features]
 default = []
-all = ["notification", "encryption", "yubikey"]
+all = ["notification", "encryption", "yubikey", "strict-caller"]
+strict-caller = []
 notification = ["notify-rust"]
 encryption = ["aes-gcm/aes"]
 yubikey = ["yubico_manager", "encryption"]
