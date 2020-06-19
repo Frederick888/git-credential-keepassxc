@@ -158,18 +158,8 @@ pub fn to_public_key<T: AsRef<str>>(public_key_b64: T) -> Result<PublicKey> {
 //     Ok(SecretKey::from(secret_key))
 // }
 
-fn get_rng() -> Rc<RefCell<ThreadRng>> {
-    thread_local! {
-        static RNG: OnceCell<Rc<RefCell<ThreadRng>>> = OnceCell::new();
-    }
-    RNG.with(|r| {
-        r.get_or_init(|| Rc::new(RefCell::new(rand::thread_rng())))
-            .clone()
-    })
-}
-
 pub fn generate_secret_key() -> SecretKey {
-    let mut rng = *get_rng().borrow_mut();
+    let mut rng = rand::thread_rng();
     SecretKey::generate(&mut rng)
 }
 
@@ -194,7 +184,7 @@ pub fn get_client_box(
 type NonceType = generic_array::GenericArray<u8, generic_array::typenum::U24>;
 
 pub fn nacl_nonce() -> (NonceType, String) {
-    let mut rng = *get_rng().borrow_mut();
+    let mut rng = rand::thread_rng();
     let nonce = crypto_box::generate_nonce(&mut rng);
     let nonce_b64 = base64::encode(&nonce);
     (nonce, nonce_b64)
