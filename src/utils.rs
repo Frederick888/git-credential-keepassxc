@@ -20,36 +20,24 @@ static KEEPASS_SOCKET_NAME: &str = "kpxc_server";
 
 #[macro_export]
 macro_rules! error {
-    (#$tag:expr, $($args:tt)+) => {
-        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Error, $tag, $($args)+)
-    };
     ($($args:tt)+) => {
         slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Error, "", $($args)+)
     };
 }
 #[macro_export]
 macro_rules! warn {
-    (#$tag:expr, $($args:tt)+) => {
-        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Warning, $tag, $($args)+)
-    };
     ($($args:tt)+) => {
         slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Warning, "", $($args)+)
     };
 }
 #[macro_export]
 macro_rules! info {
-    (#$tag:expr, $($args:tt)+) => {
-        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Info, $tag, $($args)+)
-    };
     ($($args:tt)+) => {
         slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Info, "", $($args)+)
     };
 }
 #[macro_export]
 macro_rules! debug {
-    (#$tag:expr, $($args:tt)+) => {
-        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Debug, $tag, $($args)+)
-    };
     ($($args:tt)+) => {
         slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Debug, "", $($args)+)
     };
