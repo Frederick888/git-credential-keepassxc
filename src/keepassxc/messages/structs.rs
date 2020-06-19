@@ -1,9 +1,10 @@
 use super::primitives::*;
 use crate::utils::*;
+#[allow(unused_imports)]
+use crate::{debug, error, info, warn};
 use anyhow::{anyhow, Result};
 use crypto_box::PublicKey;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use slog::{info, warn};
 use std::collections::HashMap;
 
 pub trait PlainTextRequest<R>
@@ -12,11 +13,7 @@ where
     Self: Serialize,
 {
     fn send(&self) -> Result<R> {
-        info!(
-            crate::LOGGER.get().unwrap(),
-            "Sending {} request",
-            self.get_action().to_string()
-        );
+        info!("Sending {} request", self.get_action().to_string());
         let request_json = serde_json::to_string(self)?;
         let response_json = exchange_message(request_json)?;
         let response: R = serde_json::from_str(&response_json)?;
@@ -32,11 +29,7 @@ where
     Self: Serialize,
 {
     fn send<T: Into<String>>(&self, client_id: T) -> Result<R> {
-        info!(
-            crate::LOGGER.get().unwrap(),
-            "Sending {} request",
-            self.get_action().to_string()
-        );
+        info!("Sending {} request", self.get_action().to_string());
         let (nonce, nonce_b64) = nacl_nonce();
         let encrypted_request_json = to_encrypted_json(&self, &nonce)?;
         let request_wrapper = GenericRequestWrapper {
@@ -112,7 +105,6 @@ impl GenericResponseWrapper {
     fn log(&self) {
         if self.message.is_none() {
             warn!(
-                crate::LOGGER.get().unwrap(),
                 "Request {} failed. Error: {}, Error Code: {}",
                 self.action.to_string(),
                 self.error.clone().unwrap_or_else(|| "N/A".to_owned()),

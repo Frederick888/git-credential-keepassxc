@@ -10,7 +10,7 @@ use crypto_box::{PublicKey, SecretKey};
 use git::GitCredentialMessage;
 use keepassxc::{messages::*, Group};
 use once_cell::sync::OnceCell;
-use slog::*;
+use slog::{Drain, Level, Logger};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -52,10 +52,7 @@ fn read_git_request() -> Result<(GitCredentialMessage, String)> {
         io::stdin().read_to_string(&mut git_req_string)?;
         GitCredentialMessage::from_str(&git_req_string)?
     };
-    debug!(
-        LOGGER.get().unwrap(),
-        "Git credential request: {:?}", git_req
-    );
+    debug!("Git credential request: {:?}", git_req);
     let url = {
         if let Some(ref url_string) = git_req.url {
             url_string.clone()
@@ -89,8 +86,8 @@ fn associated_databases<T: AsRef<str>>(client_id: T, config: &Config) -> Result<
                     .into()
             } else {
                 warn!(
-                    LOGGER.get().unwrap(),
-                    "Failed to authenticate against database {} using stored key", &db.id
+                    "Failed to authenticate against database {} using stored key",
+                    &db.id
                 );
                 false
             }
@@ -103,7 +100,6 @@ fn associated_databases<T: AsRef<str>>(client_id: T, config: &Config) -> Result<
         ))
     } else {
         info!(
-            LOGGER.get().unwrap(),
             "Successfully authenticated against {} database(s)",
             databases.len()
         );
@@ -117,10 +113,7 @@ fn handle_secondary_encryption(config_file: &mut Config) -> Result<()> {
     std::io::stdout().flush()?;
     std::io::stdin().read_line(&mut String::new())?;
     if config_file.get_encryption_key().is_err() {
-        warn!(
-            crate::LOGGER.get().unwrap(),
-            "Failed to extract encryption key from existing profiles"
-        );
+        warn!("Failed to extract encryption key from existing profiles");
         println!("Failed to extract the encryption key! Continue to configure a new (hardware) token using a DIFFERENT encryption key.")
     }
     println!("Now make sure you've plugged in the (hardware) token you'd like to use.");
@@ -175,7 +168,6 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
 
     // save new config
     info!(
-        LOGGER.get().unwrap(),
         "Saving configuration to {}",
         config_path.as_ref().to_string_lossy()
     );
@@ -204,20 +196,17 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         && count_callers_to_encrypt == 0
         && encryption.map(|m| m.is_empty()).unwrap_or_else(|| true)
     {
-        warn!(
-            LOGGER.get().unwrap(),
-            "Database and callers profiles have already been encrypted"
-        );
+        warn!("Database and callers profiles have already been encrypted");
         return Ok(());
     }
 
     info!(
-        LOGGER.get().unwrap(),
-        "{} database profile(s) to encrypt", count_databases_to_encrypt
+        "{} database profile(s) to encrypt",
+        count_databases_to_encrypt
     );
     info!(
-        LOGGER.get().unwrap(),
-        "{} caller profile(s) to encrypt", count_databases_to_encrypt
+        "{} caller profile(s) to encrypt",
+        count_databases_to_encrypt
     );
 
     if let Some(encryption) = encryption {
@@ -245,20 +234,14 @@ fn decrypt<T: AsRef<Path>>(config_path: T) -> Result<()> {
     let count_databases_to_decrypt = config_file.count_encrypted_databases();
     let count_callers_to_decrypt = config_file.count_encrypted_callers();
     if count_databases_to_decrypt == 0 && count_callers_to_decrypt == 0 {
-        warn!(
-            LOGGER.get().unwrap(),
-            "Database and callers profiles have already been decrypted"
-        );
+        warn!("Database and callers profiles have already been decrypted");
         return Ok(());
     }
     info!(
-        LOGGER.get().unwrap(),
-        "{} database profile(s) to decrypt", count_databases_to_decrypt
+        "{} database profile(s) to decrypt",
+        count_databases_to_decrypt
     );
-    info!(
-        LOGGER.get().unwrap(),
-        "{} caller profile(s) to decrypt", count_callers_to_decrypt
-    );
+    info!("{} caller profile(s) to decrypt", count_callers_to_decrypt);
 
     config_file.decrypt_databases()?;
     config_file.decrypt_callers()?;
@@ -324,7 +307,7 @@ fn verify_caller(config: &Config) -> Result<()> {
         return Ok(());
     }
     let pid = get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;
-    debug!(LOGGER.get().unwrap(), "PID: {}", pid);
+    debug!("PID: {}", pid);
     let system = System::new_all();
     let proc = system
         .get_process(pid)
@@ -332,7 +315,7 @@ fn verify_caller(config: &Config) -> Result<()> {
     let ppid = proc
         .parent()
         .ok_or_else(|| anyhow!("Failed to retrieve parent PID"))?;
-    debug!(LOGGER.get().unwrap(), "PPID: {}", ppid);
+    debug!("PPID: {}", ppid);
     let pproc = system
         .get_process(ppid)
         .ok_or_else(|| anyhow!("Failed to retrieve parent process information"))?;
@@ -414,17 +397,10 @@ fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
     let (client_id, _, _) = start_session()?;
 
     let login_entries = get_logins_for(&config, &client_id, &url)?;
-    info!(
-        LOGGER.get().unwrap(),
-        "KeePassXC return {} login(s)",
-        login_entries.len()
-    );
+    info!("KeePassXC return {} login(s)", login_entries.len());
     let (kph_false, mut login_entries) = filter_kph_logins(&login_entries);
     if kph_false > 0 {
-        info!(
-            LOGGER.get().unwrap(),
-            "{} login(s) were labeled as KPH: git == false", kph_false
-        );
+        info!("{} login(s) were labeled as KPH: git == false", kph_false);
     }
     if login_entries.is_empty() {
         return Err(anyhow!("No matching logins found"));
@@ -438,7 +414,6 @@ fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
             .collect();
         if !login_entries_name_matches.is_empty() {
             info!(
-                LOGGER.get().unwrap(),
                 "{} login(s) left after filtering by username",
                 login_entries_name_matches.len()
             );
@@ -446,10 +421,7 @@ fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
         }
     }
     if login_entries.len() > 1 {
-        warn!(
-            LOGGER.get().unwrap(),
-            "More than 1 matching logins found, only the first one will be returned"
-        );
+        warn!("More than 1 matching logins found, only the first one will be returned");
     }
 
     let login = login_entries.first().unwrap();
@@ -480,10 +452,7 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
     let login_entries = get_logins_for(&config, &client_id, &url).and_then(|entries| {
         let (kph_false, entries) = filter_kph_logins(&entries);
         if kph_false > 0 {
-            info!(
-                LOGGER.get().unwrap(),
-                "{} login(s) were labeled as KPH: git == false", kph_false
-            );
+            info!("{} login(s) were labeled as KPH: git == false", kph_false);
         }
         let username = git_req.username.as_ref().unwrap();
         let entries: Vec<_> = entries
@@ -492,7 +461,6 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
             .cloned()
             .collect();
         info!(
-            LOGGER.get().unwrap(),
             "{} login(s) left after filtering by username",
             entries.len()
         );
@@ -509,15 +477,9 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
 
     let sl_req = if let Ok(login_entries) = login_entries {
         if login_entries.len() == 1 {
-            warn!(
-                LOGGER.get().unwrap(),
-                "Existing login found, gonna update the entry"
-            );
+            warn!("Existing login found, gonna update the entry");
         } else {
-            warn!(
-                LOGGER.get().unwrap(),
-                "More than 1 existing logins found, gonna update the first entry"
-            );
+            warn!("More than 1 existing logins found, gonna update the first entry");
         }
         let login_entry = login_entries.first().unwrap();
 
@@ -532,7 +494,7 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
         let databases = config.get_databases()?;
         if databases.len() > 1 {
             // how do I know which database it's from?
-            error!(LOGGER.get().unwrap(), "Trying to update an existing login when multiple databases are configured, this is not implemented yet");
+            error!( "Trying to update an existing login when multiple databases are configured, this is not implemented yet");
             unimplemented!();
         }
         let database = databases.first().unwrap();
@@ -547,14 +509,10 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
             Some(&login_entry.uuid),
         )
     } else {
-        info!(
-            LOGGER.get().unwrap(),
-            "No existing logins found, gonna create a new one"
-        );
+        info!("No existing logins found, gonna create a new one");
         let databases = config.get_databases()?;
         if databases.len() > 1 {
             warn!(
-                LOGGER.get().unwrap(),
                 "More than 1 databases configured, gonna save the new login in the first database"
             );
         }
@@ -581,7 +539,6 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
             Ok(())
         } else {
             error!(
-                LOGGER.get().unwrap(),
                 "Failed to store login. Error: {}, Error Code: {}",
                 sl_resp.error.unwrap_or_else(|| "N/A".to_owned()),
                 sl_resp.error_code.unwrap_or_else(|| "N/A".to_owned())
@@ -589,7 +546,7 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
             Err(anyhow!("Failed to store login"))
         }
     } else {
-        error!(LOGGER.get().unwrap(), "Set login request failed");
+        error!("Set login request failed");
         Err(anyhow!("Set login request failed"))
     }
 }
@@ -598,10 +555,7 @@ fn erase_login() -> Result<()> {
     // Don't treat this as error as when server rejects a login Git may try to erase it. This is
     // not desirable since sometimes it's merely a configuration issue, e.g. a lot of Git servers
     // reject logins over HTTP(S) when SSH keys have been uploaded
-    warn!(
-        LOGGER.get().unwrap(),
-        "KeePassXC doesn't allow erasing logins via socket at the time of writing"
-    );
+    warn!("KeePassXC doesn't allow erasing logins via socket at the time of writing");
     let _ = read_git_request();
     Ok(())
 }
@@ -627,7 +581,7 @@ fn real_main() -> Result<()> {
         .filter_level(level)
         .fuse();
     let drain = std::sync::Mutex::new(drain).fuse();
-    let logger = Logger::root(drain, o!());
+    let logger = Logger::root(drain, slog::o!());
     LOGGER
         .set(logger)
         .map_err(|_| anyhow!("Failed to initialise logger"))?;
@@ -636,12 +590,12 @@ fn real_main() -> Result<()> {
     {
         if let Ok(dumpable) = prctl::get_dumpable() {
             if dumpable {
-                warn!(LOGGER.get().unwrap(), "Failed to disable dump");
+                warn!("Failed to disable dump");
             } else {
-                info!(LOGGER.get().unwrap(), "Dump is disabled");
+                info!("Dump is disabled");
             }
         } else {
-            warn!(LOGGER.get().unwrap(), "Failed to query dumpable status");
+            warn!("Failed to query dumpable status");
         }
     }
 
@@ -651,12 +605,8 @@ fn real_main() -> Result<()> {
         if let Some(proc) = system.get_process(pid) {
             let ppid = proc.parent().unwrap();
             if let Some(pproc) = system.get_process(ppid) {
-                debug!(LOGGER.get().unwrap(), "Parent PID: {}", ppid);
-                debug!(
-                    LOGGER.get().unwrap(),
-                    "Parent path: {}",
-                    pproc.exe().to_string_lossy()
-                );
+                debug!("Parent PID: {}", ppid);
+                debug!("Parent path: {}", pproc.exe().to_string_lossy());
             }
         }
     }
@@ -680,7 +630,7 @@ fn real_main() -> Result<()> {
     let subcommand = args
         .subcommand_name()
         .ok_or_else(|| anyhow!("No subcommand selected"))?;
-    debug!(LOGGER.get().unwrap(), "Subcommand: {}", subcommand);
+    debug!("Subcommand: {}", subcommand);
     match subcommand {
         "configure" => configure(config_path, &args),
         "encrypt" => encrypt(config_path, &args),
@@ -696,7 +646,6 @@ fn real_main() -> Result<()> {
 fn main() {
     if let Err(ref e) = real_main() {
         error!(
-            crate::LOGGER.get().unwrap(),
             "{}, Caused by: {}, Message: {}",
             e.root_cause(),
             e.source()

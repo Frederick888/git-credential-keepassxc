@@ -1,7 +1,8 @@
+#[allow(unused_imports)]
+use crate::{debug, error, info, warn};
 use aes_gcm::aead::generic_array::{typenum, GenericArray};
 use anyhow::{anyhow, Result};
 use serde::{de, Deserialize, Serialize};
-use slog::*;
 use std::cell::RefCell;
 use std::fs;
 use std::io::prelude::*;
@@ -75,7 +76,6 @@ impl Config {
                 databases.push(serde_json::from_str(database_json.as_str())?);
             } else {
                 warn!(
-                    crate::LOGGER.get().unwrap(),
                     "Failed to decrypt database profile {}.. (omitted)",
                     &encrypted_database.data[..8]
                 );
@@ -128,7 +128,6 @@ impl Config {
                 }
             }
             warn!(
-                crate::LOGGER.get().unwrap(),
                 "Failed to decrypt database profile {}.. (omitted)",
                 &encrypted_database.data[..8]
             );
@@ -198,7 +197,6 @@ impl Config {
                 }
             }
             warn!(
-                crate::LOGGER.get().unwrap(),
                 "Failed to decrypt caller profile {}.. (omitted)",
                 &encrypted_caller.data[..8]
             );
@@ -212,10 +210,7 @@ impl Config {
 
     #[cfg(not(feature = "encryption"))]
     fn base64_decrypt(&self, _data: &str, _nonce: &AesNonce) -> Result<String> {
-        error!(
-            crate::LOGGER.get().unwrap(),
-            "Enable encryption to use this feature"
-        );
+        error!("Enable encryption to use this feature");
         Err(anyhow!("Encryption is not enabled in this build"))
     }
 
@@ -241,10 +236,7 @@ impl Config {
 
     #[cfg(not(feature = "encryption"))]
     fn base64_encrypt(&self, _data: &str) -> Result<(String, AesNonce)> {
-        error!(
-            crate::LOGGER.get().unwrap(),
-            "Enable encryption to use this feature"
-        );
+        error!("Enable encryption to use this feature");
         Err(anyhow!("Encryption is not enabled in this build"))
     }
 
@@ -290,10 +282,7 @@ impl Config {
                 }
             }
             Err(_) => {
-                warn!(
-                    crate::LOGGER.get().unwrap(),
-                    "Failed to read YubiKey serial number"
-                );
+                warn!("Failed to read YubiKey serial number");
             }
         }
 
@@ -311,10 +300,7 @@ impl Config {
 
     #[cfg(not(feature = "encryption"))]
     pub fn add_encryption(&mut self, _profile: &str) -> Result<()> {
-        error!(
-            crate::LOGGER.get().unwrap(),
-            "Enable encryption to use this feature"
-        );
+        error!("Enable encryption to use this feature");
         Err(anyhow!("Encryption is not enabled in this build"))
     }
 
@@ -344,7 +330,6 @@ impl Config {
                             let encryption_key =
                                 self.get_encryption_key().or_else(|_| -> Result<_> {
                                     warn!(
-                                        crate::LOGGER.get().unwrap(),
                                         "Failed to extract encryption key from existing profiles, gonna create a new one"
                                     );
                                     *self.encryption_key.borrow_mut() = Some(aes_key());
@@ -371,10 +356,7 @@ impl Config {
 
     #[cfg(not(feature = "encryption"))]
     pub fn get_encryption_key(&self) -> Result<std::cell::Ref<Option<AesKey>>> {
-        error!(
-            crate::LOGGER.get().unwrap(),
-            "Enable encryption to use this feature"
-        );
+        error!("Enable encryption to use this feature");
         Err(anyhow!("Encryption is not enabled in this build"))
     }
 
@@ -438,10 +420,7 @@ where
 fn read_yubikey_serial() -> Result<u32> {
     #[cfg(not(feature = "yubikey"))]
     {
-        error!(
-            crate::LOGGER.get().unwrap(),
-            "YubiKey is not enabled in this build"
-        );
+        error!("YubiKey is not enabled in this build");
         Err(anyhow!("YubiKey is not enabled in this build"))
     }
     #[cfg(feature = "yubikey")]
@@ -533,10 +512,7 @@ impl Encryption {
         match self {
             #[cfg(not(feature = "yubikey"))]
             Encryption::ChallengeResponse { .. } => {
-                error!(
-                    crate::LOGGER.get().unwrap(),
-                    "YubiKey is not enabled in this build"
-                );
+                error!("YubiKey is not enabled in this build");
                 Err(anyhow!("YubiKey is not enabled in this build"))
             }
             #[cfg(feature = "yubikey")]
@@ -556,18 +532,15 @@ impl Encryption {
                 } else {
                     yubico_config::Slot::Slot2
                 };
-                debug!(crate::LOGGER.get().unwrap(), "Using YubiKey {:?}", slot);
+                debug!("Using YubiKey {:?}", slot);
                 let config = yubico_config::Config::default()
                     .set_vendor_id(device.vendor_id)
                     .set_product_id(device.product_id)
                     .set_variable_size(true)
                     .set_mode(yubico_config::Mode::Sha1)
                     .set_slot(slot);
-                debug!(crate::LOGGER.get().unwrap(), "Challenge: {}", challenge);
-                info!(
-                    crate::LOGGER.get().unwrap(),
-                    "Retrieving response, tap your YubiKey if needed"
-                );
+                debug!("Challenge: {}", challenge);
+                info!("Retrieving response, tap your YubiKey if needed");
                 let hmac_result = yubi.challenge_response_hmac(challenge.as_bytes(), config)?;
                 let mut hmac_response = vec![0u8; AES_KEY_LENGTH];
                 hmac_response.splice(..YUBIKEY_RESPONSE_LENGTH, (*hmac_result).iter().cloned());
@@ -601,10 +574,7 @@ impl FromStr for Encryption {
             "challenge-response" => {
                 let serial = read_yubikey_serial().ok();
                 if serial.is_none() {
-                    warn!(
-                        crate::LOGGER.get().unwrap(),
-                        "Failed to read YubiKey serial number"
-                    );
+                    warn!("Failed to read YubiKey serial number");
                 }
                 let slot = if let Some(slot) = profile_vec.get(1) {
                     u8::from_str(slot)?

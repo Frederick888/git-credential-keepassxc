@@ -7,7 +7,6 @@ use crypto_box::{
 #[cfg(windows)]
 use named_pipe::PipeClient;
 use once_cell::unsync::OnceCell;
-use slog::debug;
 use std::cell::RefCell;
 use std::fmt;
 use std::io::{Read, Write};
@@ -18,6 +17,43 @@ use std::rc::Rc;
 use std::str;
 
 static KEEPASS_SOCKET_NAME: &str = "kpxc_server";
+
+#[macro_export]
+macro_rules! error {
+    (#$tag:expr, $($args:tt)+) => {
+        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Error, $tag, $($args)+)
+    };
+    ($($args:tt)+) => {
+        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Error, "", $($args)+)
+    };
+}
+#[macro_export]
+macro_rules! warn {
+    (#$tag:expr, $($args:tt)+) => {
+        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Warning, $tag, $($args)+)
+    };
+    ($($args:tt)+) => {
+        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Warning, "", $($args)+)
+    };
+}
+#[macro_export]
+macro_rules! info {
+    (#$tag:expr, $($args:tt)+) => {
+        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Info, $tag, $($args)+)
+    };
+    ($($args:tt)+) => {
+        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Info, "", $($args)+)
+    };
+}
+#[macro_export]
+macro_rules! debug {
+    (#$tag:expr, $($args:tt)+) => {
+        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Debug, $tag, $($args)+)
+    };
+    ($($args:tt)+) => {
+        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Debug, "", $($args)+)
+    };
+}
 
 #[derive(Debug)]
 pub struct SocketPathError;
@@ -52,11 +88,7 @@ pub fn get_socket_path() -> Result<PathBuf> {
         .clone())
     });
     if let Ok(ref socket_path) = socket_path {
-        debug!(
-            crate::LOGGER.get().unwrap(),
-            "Socket path: {}",
-            socket_path.to_string_lossy()
-        );
+        debug!("Socket path: {}", socket_path.to_string_lossy());
     }
     socket_path
 }
@@ -107,7 +139,7 @@ fn get_stream() -> Result<Rc<RefCell<PipeClient>>> {
 }
 
 pub fn exchange_message(request: String) -> Result<String> {
-    debug!(crate::LOGGER.get().unwrap(), "SEND: {}", request);
+    debug!("SEND: {}", request);
     let stream_rc = get_stream()?;
     let mut stream = stream_rc.borrow_mut();
     stream.write_all(request.as_bytes())?;
@@ -121,7 +153,7 @@ pub fn exchange_message(request: String) -> Result<String> {
             break;
         }
     }
-    debug!(crate::LOGGER.get().unwrap(), "RECV: {}", response);
+    debug!("RECV: {}", response);
     Ok(response)
 }
 
@@ -191,7 +223,7 @@ pub fn nacl_nonce() -> (NaClNonce, String) {
 
 pub fn to_encrypted_json<M: serde::Serialize>(request: &M, nonce: &NaClNonce) -> Result<String> {
     let json = serde_json::to_string(request)?;
-    debug!(crate::LOGGER.get().unwrap(), "ENC : {}", json);
+    debug!("ENC : {}", json);
     let client_box = get_client_box(None, None)?;
     let encrypted = client_box
         .encrypt(&nonce, json.as_bytes())
@@ -210,6 +242,6 @@ pub fn to_decrypted_json<T: AsRef<str>>(encrypted_b64: T, nonce: T) -> Result<St
         )
         .map_err(|_| CryptionError(false))?;
     let json = String::from_utf8(decrypted_json)?;
-    debug!(crate::LOGGER.get().unwrap(), "DEC : {}", json);
+    debug!("DEC : {}", json);
     Ok(json)
 }
