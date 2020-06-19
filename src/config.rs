@@ -542,6 +542,8 @@ impl Encryption {
                 debug!("Challenge: {}", challenge);
                 info!("Retrieving response, tap your YubiKey if needed");
                 let hmac_result = yubi.challenge_response_hmac(challenge.as_bytes(), config)?;
+                debug!("Response: {:?}", &*hmac_result);
+                info!("Response received");
                 let mut hmac_response = vec![0u8; AES_KEY_LENGTH];
                 hmac_response.splice(..YUBIKEY_RESPONSE_LENGTH, (*hmac_result).iter().cloned());
                 *response.borrow_mut() = Some(AesKey::clone_from_slice(&hmac_response));

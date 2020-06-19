@@ -199,7 +199,6 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         warn!("Database and callers profiles have already been encrypted");
         return Ok(());
     }
-
     info!(
         "{} database profile(s) to encrypt",
         count_databases_to_encrypt
@@ -219,8 +218,13 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         config_file.add_encryption(encryption)?;
     }
 
-    config_file.encrypt_databases()?;
-    config_file.encrypt_callers()?;
+    let count_databases_encrypted = config_file.encrypt_databases()?;
+    let count_callers_encrypted = config_file.encrypt_callers()?;
+    info!(
+        "{} database profile(s) encrypted",
+        count_databases_encrypted
+    );
+    info!("{} caller profile(s) encrypted", count_callers_encrypted);
 
     config_file.write_to(config_path)?;
 
@@ -307,7 +311,7 @@ fn verify_caller(config: &Config) -> Result<()> {
         return Ok(());
     }
     let pid = get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;
-    debug!("PID: {}", pid);
+    info!("PID: {}", pid);
     let system = System::new_all();
     let proc = system
         .get_process(pid)
@@ -315,11 +319,12 @@ fn verify_caller(config: &Config) -> Result<()> {
     let ppid = proc
         .parent()
         .ok_or_else(|| anyhow!("Failed to retrieve parent PID"))?;
-    debug!("PPID: {}", ppid);
+    info!("PPID: {}", ppid);
     let pproc = system
         .get_process(ppid)
         .ok_or_else(|| anyhow!("Failed to retrieve parent process information"))?;
     let ppath = pproc.exe().to_string_lossy();
+    info!("Parent process path: {}", ppath);
     let callers = config.get_callers()?;
     #[cfg(unix)]
     let matching_callers: Vec<_> = callers
@@ -494,7 +499,9 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
         let databases = config.get_databases()?;
         if databases.len() > 1 {
             // how do I know which database it's from?
-            error!( "Trying to update an existing login when multiple databases are configured, this is not implemented yet");
+            error!(
+                "Trying to update an existing login when multiple databases are configured, this is not implemented yet"
+            );
             unimplemented!();
         }
         let database = databases.first().unwrap();
@@ -555,7 +562,7 @@ fn erase_login() -> Result<()> {
     // Don't treat this as error as when server rejects a login Git may try to erase it. This is
     // not desirable since sometimes it's merely a configuration issue, e.g. a lot of Git servers
     // reject logins over HTTP(S) when SSH keys have been uploaded
-    warn!("KeePassXC doesn't allow erasing logins via socket at the time of writing");
+    error!("KeePassXC doesn't allow erasing logins via socket at the time of writing");
     let _ = read_git_request();
     Ok(())
 }
@@ -590,12 +597,12 @@ fn real_main() -> Result<()> {
     {
         if let Ok(dumpable) = prctl::get_dumpable() {
             if dumpable {
-                warn!("Failed to disable dump");
+                error!("Failed to disable dump");
             } else {
                 info!("Dump is disabled");
             }
         } else {
-            warn!("Failed to query dumpable status");
+            error!("Failed to query dumpable status");
         }
     }
 
