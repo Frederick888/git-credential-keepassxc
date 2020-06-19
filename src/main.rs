@@ -606,18 +606,6 @@ fn real_main() -> Result<()> {
         }
     }
 
-    {
-        let pid = get_current_pid().map_err(|s| anyhow!("Failed to get current PID: {}", s))?;
-        let system = System::new_all();
-        if let Some(proc) = system.get_process(pid) {
-            let ppid = proc.parent().unwrap();
-            if let Some(pproc) = system.get_process(ppid) {
-                debug!("Parent PID: {}", ppid);
-                debug!("Parent path: {}", pproc.exe().to_string_lossy());
-            }
-        }
-    }
-
     let config_path = {
         if let Some(path) = args.value_of("config") {
             PathBuf::from(path)
