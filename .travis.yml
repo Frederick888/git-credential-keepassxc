@@ -12,6 +12,7 @@ addons:
       - libusb-0.1-4
       - libusb-1.0-0
       - libusb-1.0-0-dev
+      - libdbus-1-dev
   homebrew:
     update: true
     packages:
@@ -69,6 +70,7 @@ before_cache:
 
 script:
   - cargo build --verbose --release
+  - cargo build --verbose --release --features=notification
   - cargo build --verbose --release --features=encryption
   - cargo build --verbose --release --features=yubikey
   - cargo build --verbose --release --features=all

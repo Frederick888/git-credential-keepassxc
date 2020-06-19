@@ -306,9 +306,9 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     }
 }
 
-fn verify_caller(config: &Config) -> Result<()> {
+fn verify_caller(config: &Config) -> Result<Option<(usize, PathBuf)>> {
     if config.count_callers() == 0 {
-        return Ok(());
+        return Ok(None);
     }
     let pid = get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;
     info!("PID: {}", pid);
@@ -343,7 +343,7 @@ fn verify_caller(config: &Config) -> Result<()> {
     if matching_callers.is_empty() {
         Err(anyhow!("You are not allowed to use this program"))
     } else {
-        Ok(())
+        Ok(Some((ppid as usize, pproc.exe().to_owned())))
     }
 }
 
@@ -395,9 +395,30 @@ fn filter_kph_logins(login_entries: &[LoginEntry]) -> (u32, Vec<&LoginEntry>) {
 
 fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
     let config = Config::read_from(config_path.as_ref())?;
-    verify_caller(&config)?;
+    let _verify_caller = verify_caller(&config)?;
     // read credential request
     let (git_req, url) = read_git_request()?;
+
+    #[cfg(feature = "notification")]
+    {
+        if let Some((ppid, ppath)) = _verify_caller {
+            use notify_rust::{Notification, Timeout};
+            let notification = Notification::new()
+                .summary("Credential request")
+                .body(&format!(
+                    "{} ({}) has requested credential for {}",
+                    ppath.file_name().unwrap_or_default().to_string_lossy(),
+                    ppid,
+                    url
+                ))
+                .timeout(Timeout::Milliseconds(6000))
+                .show();
+            if let Err(e) = notification {
+                warn!("Failed to show notification for credential request, {}", e);
+            }
+        }
+    }
+
     // start session
     let (client_id, _, _) = start_session()?;
 

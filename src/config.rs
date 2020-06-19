@@ -541,6 +541,21 @@ impl Encryption {
                     .set_slot(slot);
                 debug!("Challenge: {}", challenge);
                 info!("Retrieving response, tap your YubiKey if needed");
+                #[cfg(feature = "notification")]
+                {
+                    use notify_rust::{Notification, Timeout};
+                    let notification = Notification::new()
+                        .summary("Tap YubiKey if necessary")
+                        .body(&format!(
+                            "{} is going to send HMAC challenge to YubiKey",
+                            clap::crate_name!()
+                        ))
+                        .timeout(Timeout::Milliseconds(3000))
+                        .show();
+                    if let Err(e) = notification {
+                        warn!("Failed to show notification for YubiKey operation, {}", e);
+                    }
+                }
                 let hmac_result = yubi.challenge_response_hmac(challenge.as_bytes(), config)?;
                 debug!("Response: {:?}", &*hmac_result);
                 info!("Response received");
