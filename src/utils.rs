@@ -7,7 +7,6 @@ use crypto_box::{
 #[cfg(windows)]
 use named_pipe::PipeClient;
 use once_cell::unsync::OnceCell;
-use rand::rngs::ThreadRng;
 use slog::debug;
 use std::cell::RefCell;
 use std::fmt;
