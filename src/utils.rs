@@ -180,16 +180,16 @@ pub fn get_client_box(
     })?)
 }
 
-type NonceType = generic_array::GenericArray<u8, generic_array::typenum::U24>;
+type NaClNonce = generic_array::GenericArray<u8, generic_array::typenum::U24>;
 
-pub fn nacl_nonce() -> (NonceType, String) {
+pub fn nacl_nonce() -> (NaClNonce, String) {
     let mut rng = rand::thread_rng();
     let nonce = crypto_box::generate_nonce(&mut rng);
     let nonce_b64 = base64::encode(&nonce);
     (nonce, nonce_b64)
 }
 
-pub fn to_encrypted_json<M: serde::Serialize>(request: &M, nonce: &NonceType) -> Result<String> {
+pub fn to_encrypted_json<M: serde::Serialize>(request: &M, nonce: &NaClNonce) -> Result<String> {
     let json = serde_json::to_string(request)?;
     debug!(crate::LOGGER.get().unwrap(), "ENC : {}", json);
     let client_box = get_client_box(None, None)?;
@@ -205,7 +205,7 @@ pub fn to_decrypted_json<T: AsRef<str>>(encrypted_b64: T, nonce: T) -> Result<St
     let client_box = get_client_box(None, None)?;
     let decrypted_json = client_box
         .decrypt(
-            NonceType::from_slice(&base64::decode(nonce.as_ref())?),
+            NaClNonce::from_slice(&base64::decode(nonce.as_ref())?),
             &bytes[..],
         )
         .map_err(|_| CryptionError(false))?;
