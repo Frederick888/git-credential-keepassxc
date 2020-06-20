@@ -95,8 +95,11 @@ impl Config {
     pub fn add_database(&mut self, database: Database, encrypted: bool) -> Result<()> {
         if encrypted {
             let (data, nonce) = self.base64_encrypt(&serde_json::to_string(&database)?)?;
-            self.encrypted_databases
-                .push(EncryptedProfile { data, nonce });
+            self.encrypted_databases.push(EncryptedProfile {
+                data,
+                nonce,
+                ..Default::default()
+            });
         } else {
             self.databases.push(database);
         }
@@ -107,8 +110,11 @@ impl Config {
         let result = self.databases.len();
         for database in &self.databases {
             let (data, nonce) = self.base64_encrypt(&serde_json::to_string(database)?)?;
-            self.encrypted_databases
-                .push(EncryptedProfile { data, nonce });
+            self.encrypted_databases.push(EncryptedProfile {
+                data,
+                nonce,
+                ..Default::default()
+            });
         }
         self.databases.clear();
         Ok(result)
@@ -165,9 +171,16 @@ impl Config {
 
     pub fn add_caller(&mut self, caller: Caller, encrypted: bool) -> Result<()> {
         if encrypted {
+            let description = Some(format!(
+                "[This field is not used during verification] Caller profile for {}",
+                caller.path
+            ));
             let (data, nonce) = self.base64_encrypt(&serde_json::to_string(&caller)?)?;
-            self.encrypted_callers
-                .push(EncryptedProfile { data, nonce });
+            self.encrypted_callers.push(EncryptedProfile {
+                data,
+                nonce,
+                description,
+            });
         } else {
             self.callers.push(caller);
         }
@@ -177,9 +190,16 @@ impl Config {
     pub fn encrypt_callers(&mut self) -> Result<usize> {
         let result = self.callers.len();
         for caller in &self.callers {
+            let description = Some(format!(
+                "[This field is not used during verification] Caller profile for {}",
+                caller.path
+            ));
             let (data, nonce) = self.base64_encrypt(&serde_json::to_string(caller)?)?;
-            self.encrypted_callers
-                .push(EncryptedProfile { data, nonce });
+            self.encrypted_callers.push(EncryptedProfile {
+                data,
+                nonce,
+                description,
+            });
         }
         self.callers.clear();
         Ok(result)
@@ -435,7 +455,7 @@ fn read_yubikey_serial() -> Result<u32> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Default, Debug)]
 struct EncryptedProfile {
     data: String,
     #[serde(
@@ -443,6 +463,8 @@ struct EncryptedProfile {
         deserialize_with = "aes_nonce_deserialize"
     )]
     nonce: AesNonce,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
