@@ -121,3 +121,7 @@ xfreerdp /v:"$HOST:$PORT" /cert-tofu /cert:ignore \
     +compression /compression-level:2 +clipboard +themes +wallpaper \
     /t:Example +decorations /u:"$USERNAME" /p:"$PASSWORD"
 ```
+
+## Security
+
+See: [wiki/Security](https://github.com/Frederick888/git-credential-keepassxc/wiki/Security)
