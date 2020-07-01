@@ -64,8 +64,9 @@ pub fn get_socket_path() -> Result<PathBuf> {
                     "\\\\.\\pipe\\\\{}\\Temp\\kpxc_server",
                     cache_dir.to_string_lossy()
                 ))
+            } else if cfg!(target_os = "macos") {
+                PathBuf::from(std::env::var("TMPDIR")?).join(KEEPASS_SOCKET_NAME)
             } else {
-                // TODO: check macOS value
                 base_dirs
                     .runtime_dir()
                     .ok_or_else(|| anyhow!("Failed to locate runtime_dir automatically"))?
