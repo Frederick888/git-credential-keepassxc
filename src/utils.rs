@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::str;
 
-static KEEPASS_SOCKET_NAME: &str = "kpxc_server";
+static KEEPASS_SOCKET_NAME: &str = "org.keepassxc.KeePassXC.BrowserServer";
 
 #[macro_export]
 macro_rules! error {
