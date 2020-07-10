@@ -65,7 +65,7 @@ pub fn get_socket_path() -> Result<PathBuf> {
                     cache_dir.to_string_lossy()
                 ))
             } else if cfg!(target_os = "macos") {
-                PathBuf::from(std::env::var("TMPDIR")?).join(KEEPASS_SOCKET_NAME)
+                std::env::temp_dir().join(KEEPASS_SOCKET_NAME)
             } else {
                 base_dirs
                     .runtime_dir()
