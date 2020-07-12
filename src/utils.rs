@@ -17,6 +17,7 @@ use std::rc::Rc;
 use std::str;
 
 static KEEPASS_SOCKET_NAME: &str = "org.keepassxc.KeePassXC.BrowserServer";
+static KEEPASS_SOCKET_NAME_LEGACY: &str = "kpxc_server";
 
 #[macro_export]
 macro_rules! error {
@@ -58,22 +59,30 @@ pub fn get_socket_path() -> Result<PathBuf> {
         Ok(s.get_or_try_init(|| -> Result<_> {
             let base_dirs = directories_next::BaseDirs::new()
                 .ok_or_else(|| anyhow!("Failed to initialise base_dirs"))?;
-            let socket_dir = if cfg!(windows) {
-                let cache_dir = base_dirs.cache_dir();
-                PathBuf::from(format!(
-                    "\\\\.\\pipe\\\\{}\\Temp\\{}",
-                    cache_dir.to_string_lossy(),
-                    KEEPASS_SOCKET_NAME
-                ))
-            } else if cfg!(target_os = "macos") {
-                std::env::temp_dir().join(KEEPASS_SOCKET_NAME)
-            } else {
-                base_dirs
-                    .runtime_dir()
-                    .ok_or_else(|| anyhow!("Failed to locate runtime_dir automatically"))?
-                    .join(KEEPASS_SOCKET_NAME)
+            let get_socket_path_with_name = |name: &str| -> Result<PathBuf> {
+                let socket_dir = if cfg!(windows) {
+                    let cache_dir = base_dirs.cache_dir();
+                    PathBuf::from(format!(
+                        "\\\\.\\pipe\\\\{}\\Temp\\{}",
+                        cache_dir.to_string_lossy(),
+                        name
+                    ))
+                } else if cfg!(target_os = "macos") {
+                    std::env::temp_dir().join(name)
+                } else {
+                    base_dirs
+                        .runtime_dir()
+                        .ok_or_else(|| anyhow!("Failed to locate runtime_dir automatically"))?
+                        .join(name)
+                };
+                Ok(socket_dir)
             };
-            Ok(socket_dir)
+            let legacy_path = get_socket_path_with_name(KEEPASS_SOCKET_NAME_LEGACY);
+            if legacy_path.is_ok() && legacy_path.as_ref().unwrap().exists() {
+                legacy_path
+            } else {
+                get_socket_path_with_name(KEEPASS_SOCKET_NAME)
+            }
         })?
         .clone())
     });
