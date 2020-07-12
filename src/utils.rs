@@ -61,8 +61,9 @@ pub fn get_socket_path() -> Result<PathBuf> {
             let socket_dir = if cfg!(windows) {
                 let cache_dir = base_dirs.cache_dir();
                 PathBuf::from(format!(
-                    "\\\\.\\pipe\\\\{}\\Temp\\kpxc_server",
-                    cache_dir.to_string_lossy()
+                    "\\\\.\\pipe\\\\{}\\Temp\\{}",
+                    cache_dir.to_string_lossy(),
+                    KEEPASS_SOCKET_NAME
                 ))
             } else if cfg!(target_os = "macos") {
                 std::env::temp_dir().join(KEEPASS_SOCKET_NAME)
