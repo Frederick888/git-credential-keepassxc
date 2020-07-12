@@ -55,6 +55,8 @@ before_install:
         taskkill //IM gpg-agent.exe //F  # https://travis-ci.community/t/4967
         export PATH=/C/tools/msys64/mingw64/bin:$PATH
         export MAKE=mingw32-make  # so that Autotools can find it
+        export PKG_CONFIG_ALLOW_CROSS=1
+        rustup component add rust-std-x86_64-pc-windows-gnu
         ;;
     esac
 
@@ -68,8 +70,9 @@ before_cache:
     esac
 
 script:
-  - cargo build --verbose --release
-  - cargo build --verbose --release --features=notification
-  - cargo build --verbose --release --features=encryption
-  - cargo build --verbose --release --features=yubikey
-  - cargo build --verbose --release --features=all
+  - "[[ $TRAVIS_OS_NAME == \"windows\" ]] && FLAGS=\"--target=x86_64-pc-windows-gnu\" || FLAGS=\"\""
+  - cargo build --verbose --release $FLAGS
+  - cargo build --verbose --release --features=notification $FLAGS
+  - cargo build --verbose --release --features=encryption $FLAGS
+  - cargo build --verbose --release --features=yubikey $FLAGS
+  - cargo build --verbose --release --features=all $FLAGS
