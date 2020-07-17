@@ -60,13 +60,15 @@ pub fn get_socket_path() -> Result<PathBuf> {
             let base_dirs = directories_next::BaseDirs::new()
                 .ok_or_else(|| anyhow!("Failed to initialise base_dirs"))?;
             let get_socket_path_with_name = |name: &str| -> Result<PathBuf> {
-                let socket_dir = if cfg!(windows) {
+                let socket_dir = if cfg!(windows) && name == KEEPASS_SOCKET_NAME_LEGACY {
                     let cache_dir = base_dirs.cache_dir();
                     PathBuf::from(format!(
                         "\\\\.\\pipe\\\\{}\\Temp\\{}",
                         cache_dir.to_string_lossy(),
                         name
                     ))
+                } else if cfg!(windows) {
+                    PathBuf::from(format!("\\\\.\\pipe\\{}", name))
                 } else if cfg!(target_os = "macos") {
                     std::env::temp_dir().join(name)
                 } else {
