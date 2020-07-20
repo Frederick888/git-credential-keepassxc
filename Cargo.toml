@@ -1,6 +1,6 @@
 [package]
 name = "git-credential-keepassxc"
-version = "0.3.2"
+version = "0.3.3"
 authors = ["Frederick Zhang <frederick888@tsundere.moe>"]
 edition = "2018"
 description = "Helper that allows Git to use KeePassXC as credential store"
