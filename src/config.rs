@@ -10,6 +10,10 @@ use std::fs;
 use std::io::prelude::*;
 use std::path::Path;
 use std::string::ToString;
+
+#[cfg(target_family = "unix")]
+use std::os::unix::prelude::*;
+
 #[cfg(feature = "encryption")]
 use {
     aes_gcm::aead::{Aead, NewAead},
@@ -67,7 +71,15 @@ impl Config {
 
     pub fn write_to<T: AsRef<Path>>(&self, config_path: T) -> Result<()> {
         let json = serde_json::to_string_pretty(self)?;
-        let mut file = fs::File::create(config_path.as_ref())?;
+        let mut file_options = fs::OpenOptions::new();
+        #[cfg(target_family = "unix")]
+        file_options.mode(0o600);
+        let mut file = file_options
+                        .create(true)
+                        .write(true)
+                        .truncate(true)
+                        .open(config_path.as_ref())?;
+
         file.write_all(&json.as_bytes())?;
         Ok(())
     }
