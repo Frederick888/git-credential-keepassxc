@@ -2,6 +2,8 @@
 use crate::{debug, error, info, warn};
 use aes_gcm::aead::generic_array::{typenum, GenericArray};
 use anyhow::{anyhow, Result};
+#[cfg(test)]
+use mockall::automock;
 use serde::{de, Deserialize, Serialize};
 use std::cell::RefCell;
 use std::fs;
@@ -17,12 +19,15 @@ use {
     std::str::FromStr,
 };
 #[cfg(feature = "yubikey")]
-use {yubico_manager::config as yubico_config, yubico_manager::Yubico};
+use {
+    yubico_manager::config as yubico_config, yubico_manager::yubicoerror::YubicoError,
+    yubico_manager::Yubico,
+};
 
 #[cfg(any(feature = "encryption", feature = "yubikey"))]
-const YUBIKEY_CHALLENGE_LENGTH: usize = 64usize;
+const HMAC_SHA1_CHALLENGE_LENGTH: usize = 64usize;
 #[cfg(all(feature = "encryption", feature = "yubikey"))]
-const YUBIKEY_RESPONSE_LENGTH: usize = 20usize;
+const HMAC_SHA1_RESPONSE_LENGTH: usize = 20usize;
 #[cfg(feature = "encryption")]
 const AES_KEY_LENGTH: usize = 32usize;
 #[cfg(feature = "encryption")]
@@ -445,12 +450,12 @@ fn read_yubikey_serial() -> Result<u32> {
     }
     #[cfg(feature = "yubikey")]
     {
-        let mut yubi = Yubico::new();
-        let device = yubi.find_yubikey()?;
-        let config = yubico_config::Config::default()
-            .set_vendor_id(device.vendor_id)
-            .set_product_id(device.product_id);
-        yubi.read_serial_number(config)
+        #[cfg(not(test))]
+        let mut yubikey = YubiKey::new()?;
+        #[cfg(test)]
+        let mut yubikey = MockYubiKeyTrait::new_mock();
+        yubikey
+            .read_serial_number()
             .map_err(|_| anyhow!("Failed to read YubiKey serial number"))
     }
 }
@@ -547,42 +552,19 @@ impl Encryption {
                 if response.borrow().is_some() {
                     return Ok(response.borrow());
                 }
-                let mut yubi = Yubico::new();
-                let device = yubi.find_yubikey()?;
                 let slot = if *slot == 1 {
                     yubico_config::Slot::Slot1
                 } else {
                     yubico_config::Slot::Slot2
                 };
-                debug!("Using YubiKey {:?}", slot);
-                let config = yubico_config::Config::default()
-                    .set_vendor_id(device.vendor_id)
-                    .set_product_id(device.product_id)
-                    .set_variable_size(true)
-                    .set_mode(yubico_config::Mode::Sha1)
-                    .set_slot(slot);
-                debug!("Challenge: {}", challenge);
-                info!("Retrieving response, tap your YubiKey if needed");
-                #[cfg(feature = "notification")]
-                {
-                    use notify_rust::{Notification, Timeout};
-                    let notification = Notification::new()
-                        .summary("Tap YubiKey if necessary")
-                        .body(&format!(
-                            "{} is going to send HMAC challenge to YubiKey",
-                            clap::crate_name!()
-                        ))
-                        .timeout(Timeout::Milliseconds(3000))
-                        .show();
-                    if let Err(e) = notification {
-                        warn!("Failed to show notification for YubiKey operation, {}", e);
-                    }
-                }
-                let hmac_result = yubi.challenge_response_hmac(challenge.as_bytes(), config)?;
-                debug!("Response: {:?}", &*hmac_result);
-                info!("Response received");
-                let mut hmac_response = vec![0u8; AES_KEY_LENGTH];
-                hmac_response.splice(..YUBIKEY_RESPONSE_LENGTH, (*hmac_result).iter().cloned());
+                #[cfg(not(test))]
+                let mut yubikey = YubiKey::new()?;
+                #[cfg(test)]
+                let mut yubikey = MockYubiKeyTrait::new_mock();
+                let mut hmac_response = yubikey.challenge_response_hmac(&challenge, slot)?;
+                debug_assert_eq!(hmac_response.len(), HMAC_SHA1_RESPONSE_LENGTH);
+                hmac_response.extend_from_slice(&[0u8; AES_KEY_LENGTH - HMAC_SHA1_RESPONSE_LENGTH]);
+                debug_assert_eq!(hmac_response.len(), AES_KEY_LENGTH);
                 *response.borrow_mut() = Some(AesKey::clone_from_slice(&hmac_response));
                 Ok(response.borrow())
             }
@@ -628,7 +610,7 @@ impl FromStr for Encryption {
                     (*challenge).to_owned()
                 } else {
                     rng.sample_iter(Alphanumeric)
-                        .take(YUBIKEY_CHALLENGE_LENGTH)
+                        .take(HMAC_SHA1_CHALLENGE_LENGTH)
                         .collect()
                 };
                 Ok(Encryption::ChallengeResponse {
@@ -642,5 +624,212 @@ impl FromStr for Encryption {
             }
             _ => Err(anyhow!("Unknown encryption profile: {}", profile)),
         }
+    }
+}
+
+#[cfg(feature = "yubikey")]
+#[cfg_attr(test, automock)]
+trait YubiKeyTrait {
+    fn read_serial_number(&mut self) -> Result<u32, YubicoError>;
+    fn challenge_response_hmac(
+        &mut self,
+        challenge: &String,
+        slot: yubico_config::Slot,
+    ) -> Result<Vec<u8>, YubicoError>;
+}
+
+#[cfg(test)]
+impl MockYubiKeyTrait {
+    fn new_mock() -> Self {
+        use hmac::{Mac, NewMac};
+
+        let mut mock_yubikey = Self::new();
+        mock_yubikey
+            .expect_read_serial_number()
+            .returning_st(|| Ok(tests::TEST_YUBIKEY_SERIAL));
+        mock_yubikey
+            .expect_challenge_response_hmac()
+            .returning(|challenge, _| {
+                let mut mac =
+                    tests::HmacSha1::new_varkey(tests::TEST_YUBIKEY_HMAC_SHA1_SECRET.as_bytes())
+                        .unwrap();
+                mac.update(challenge.as_bytes());
+                let result = mac.finalize();
+                let bytes: Vec<_> = result.into_bytes().into_iter().collect();
+                assert_eq!(
+                    bytes.len(),
+                    HMAC_SHA1_RESPONSE_LENGTH,
+                    "Incorrect mock YubiKey response length"
+                );
+                Ok(bytes)
+            });
+        mock_yubikey
+    }
+}
+
+#[cfg(feature = "yubikey")]
+struct YubiKey {
+    yubi: Yubico,
+    device: yubico_manager::Device,
+}
+
+#[cfg(all(not(test), feature = "yubikey"))]
+impl YubiKey {
+    fn new() -> Result<Self> {
+        let mut yubi = Yubico::new();
+        let device = yubi.find_yubikey()?;
+        Ok(Self { yubi, device })
+    }
+}
+
+#[cfg(feature = "yubikey")]
+impl YubiKeyTrait for YubiKey {
+    fn read_serial_number(&mut self) -> Result<u32, YubicoError> {
+        let config = yubico_config::Config::default()
+            .set_vendor_id(self.device.vendor_id)
+            .set_product_id(self.device.product_id);
+        self.yubi.read_serial_number(config)
+    }
+
+    fn challenge_response_hmac(
+        &mut self,
+        challenge: &String,
+        slot: yubico_config::Slot,
+    ) -> Result<Vec<u8>, YubicoError> {
+        debug!("Using YubiKey {:?}", slot);
+        let config = yubico_config::Config::default()
+            .set_vendor_id(self.device.vendor_id)
+            .set_product_id(self.device.product_id)
+            .set_variable_size(true)
+            .set_mode(yubico_config::Mode::Sha1)
+            .set_slot(slot);
+        debug!("Challenge: {}", challenge);
+        info!("Retrieving response, tap your YubiKey if needed");
+        #[cfg(feature = "notification")]
+        {
+            use notify_rust::{Notification, Timeout};
+            let notification = Notification::new()
+                .summary("Tap YubiKey if necessary")
+                .body(&format!(
+                    "{} is going to send HMAC challenge to YubiKey",
+                    clap::crate_name!()
+                ))
+                .timeout(Timeout::Milliseconds(3000))
+                .show();
+            if let Err(e) = notification {
+                warn!("Failed to show notification for YubiKey operation, {}", e);
+            }
+        }
+        let hmac_result = self
+            .yubi
+            .challenge_response_hmac(challenge.as_bytes(), config)?;
+        debug!("Response: {:?}", &*hmac_result);
+        info!("Response received");
+        Ok((*hmac_result).iter().cloned().collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::keepassxc::Group;
+    use crate::utils::generate_secret_key;
+    use hmac::Hmac;
+    use sha1::Sha1;
+
+    pub type HmacSha1 = Hmac<Sha1>;
+
+    pub static TEST_YUBIKEY_SERIAL: u32 = 1234567;
+    pub static TEST_YUBIKEY_HMAC_SHA1_SECRET: &'static str = "test_secret";
+
+    #[test]
+    fn test_00_config_read_write_plain_text() {
+        let config_path = {
+            let mut temp = std::env::temp_dir();
+            temp.push(format!("{}.test_00.json", clap::crate_name!()));
+            assert!(
+                !temp.exists(),
+                "Test configuration file {} already exists",
+                temp.to_string_lossy()
+            );
+            temp
+        };
+        let group = Group::new("mock group", "mock uuid");
+        let secret_key = generate_secret_key();
+        let database = Database::new(
+            "mock database".to_owned(),
+            secret_key.clone(),
+            group.clone(),
+        );
+
+        {
+            // write
+            let mut config = Config::new();
+            config.add_database(database.clone(), false).unwrap();
+            config.write_to(&config_path).unwrap();
+        }
+        {
+            // read, validate
+            let config = Config::read_from(&config_path).unwrap();
+            assert_eq!(config.count_databases(), 1);
+            let databases = config.get_databases().unwrap();
+            assert_eq!(databases[0].id, database.id);
+            assert_eq!(databases[0].key, base64::encode(secret_key.to_bytes()));
+        }
+
+        std::fs::remove_file(config_path).unwrap();
+    }
+
+    #[test]
+    fn test_01_config_read_write_challenge_response() {
+        let config_path = {
+            let mut temp = std::env::temp_dir();
+            temp.push(format!("{}.test_01.json", clap::crate_name!()));
+            assert!(
+                !temp.exists(),
+                "Test configuration file {} already exists",
+                temp.to_string_lossy()
+            );
+            temp
+        };
+        let group = Group::new("mock group", "mock uuid");
+        let secret_key = generate_secret_key();
+        let database = Database::new(
+            "mock database".to_owned(),
+            secret_key.clone(),
+            group.clone(),
+        );
+
+        {
+            // write plain text config
+            let mut config = Config::new();
+            config.add_database(database.clone(), false).unwrap();
+            config.write_to(&config_path).unwrap();
+        }
+        {
+            // read plain text, write encrypted
+            let mut config = Config::read_from(&config_path).unwrap();
+            config.add_encryption("challenge-response").unwrap();
+            let encrypted = config.encrypt_databases().unwrap();
+            assert_eq!(encrypted, 1);
+            config.write_to(&config_path).unwrap();
+        }
+        {
+            // read encrypted, validate, write back
+            let mut config = Config::read_from(&config_path).unwrap();
+            assert_eq!(config.count_databases(), 1);
+            let databases = config.get_databases().unwrap();
+            assert_eq!(databases[0].id, database.id);
+            assert_eq!(databases[0].key, base64::encode(secret_key.to_bytes()));
+            let decrypted = config.decrypt_databases().unwrap();
+            assert_eq!(decrypted, 1);
+            config.write_to(&config_path).unwrap();
+        }
+        {
+            // still valid
+            let _config = Config::read_from(&config_path).unwrap();
+        }
+
+        std::fs::remove_file(config_path).unwrap();
     }
 }

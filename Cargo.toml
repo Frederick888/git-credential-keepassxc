@@ -44,3 +44,8 @@ prctl = "1.0.0"
 
 [target.'cfg(windows)'.dependencies]
 named_pipe = "0.4.1"
+
+[dev-dependencies]
+mockall = "0.7.2"
+sha-1 = "0.9.1"
+hmac = "0.8.1"

@@ -16,7 +16,10 @@ where
     fn send(&self) -> Result<R> {
         info!("Sending {} request", self.get_action().to_string());
         let request_json = serde_json::to_string(self)?;
-        let response_json = exchange_message(request_json)?;
+        #[cfg(not(test))]
+        let response_json = MessengingUtils::exchange_message(request_json)?;
+        #[cfg(test)]
+        let response_json = MockMessengingUtils::exchange_message(request_json)?;
         let response: R = serde_json::from_str(&response_json)?;
         Ok(response)
     }
@@ -45,9 +48,15 @@ where
             client_id: client_id.into(),
             trigger_unlock,
         };
-        send_message(serde_json::to_string(&request_wrapper)?)?;
+        #[cfg(not(test))]
+        MessengingUtils::send_message(serde_json::to_string(&request_wrapper)?)?;
+        #[cfg(test)]
+        MockMessengingUtils::send_message(serde_json::to_string(&request_wrapper)?)?;
         let response_wrapper = loop {
-            let response_wrapper_json = receive_message()?;
+            #[cfg(not(test))]
+            let response_wrapper_json = MessengingUtils::receive_message()?;
+            #[cfg(test)]
+            let response_wrapper_json = MockMessengingUtils::receive_message()?;
             let response_wrapper: GenericResponseWrapper =
                 serde_json::from_str(&response_wrapper_json)?;
             if response_wrapper.action == self.get_action() {
@@ -142,7 +151,7 @@ impl GenericResponseWrapper {
  * https://github.com/keepassxreboot/keepassxc-browser/blob/develop/keepassxc-protocol.md#change-public-keys
  */
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Clone, Debug)]
 pub struct ChangePublicKeysRequest {
     pub action: KeePassAction,
     #[serde(rename = "publicKey")]
@@ -171,7 +180,7 @@ impl PlainTextRequest<ChangePublicKeysResponse> for ChangePublicKeysRequest {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ChangePublicKeysResponse {
     pub action: Option<KeePassAction>,
     #[serde(rename = "publicKey")]
@@ -530,3 +539,101 @@ pub struct CreateNewGroupResponse {
 //     DatabaseUnlocked,
 //     "database-unlocked-req"
 // );
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_00_exchange_public_keys() {
+        let _guard = test_guard().lock().unwrap();
+        let host_seckey = test_host_secret_key();
+        let host_pubkey = host_seckey.public_key();
+        let session_seckey = test_session_secret_key();
+        let _ = get_client_box(Some(&host_pubkey), Some(&session_seckey));
+        let (_, client_id) = nacl_nonce();
+
+        let exchange_message_context = mock_kpxc_initialise(&host_seckey);
+        let change_public_key_request = ChangePublicKeysRequest::new(&client_id, &host_pubkey);
+        let change_public_key_response = change_public_key_request.send();
+        assert!(change_public_key_response.is_ok());
+        let change_public_key_response = change_public_key_response.unwrap();
+        assert!(change_public_key_response.public_key.is_some());
+        let host_pubkey_b64 = base64::encode(host_pubkey.as_bytes());
+        assert_eq!(
+            host_pubkey_b64,
+            change_public_key_response.public_key.unwrap()
+        );
+        exchange_message_context.checkpoint();
+    }
+
+    #[test]
+    fn test_01_successful_test_associate() {
+        let _guard = test_guard().lock().unwrap();
+        let host_seckey = test_host_secret_key();
+        let host_pubkey = host_seckey.public_key();
+        let session_seckey = test_session_secret_key();
+        let session_pubkey = session_seckey.public_key();
+        let _ = get_client_box(Some(&host_pubkey), Some(&session_seckey));
+        let (_, client_id) = nacl_nonce();
+
+        // exchange keys
+        let (send_message_context, receive_message_context) =
+            mock_kpxc_initialise_send_receive(&host_seckey);
+        let exchange_message_context = MockMessengingUtils::exchange_message_context();
+        let change_public_key_request = ChangePublicKeysRequest::new(&client_id, &host_pubkey);
+        {
+            let change_public_key_request = change_public_key_request.clone();
+            exchange_message_context
+                .expect()
+                .times(1)
+                .return_once(move |_| {
+                    MockMessengingUtils::send_message(
+                        serde_json::to_string(&change_public_key_request).unwrap(),
+                    )
+                    .unwrap();
+                    MockMessengingUtils::receive_message()
+                });
+        }
+        let change_public_key_response = change_public_key_request.send();
+        assert!(change_public_key_response.is_ok());
+        let change_public_key_response = change_public_key_response.unwrap();
+        assert!(change_public_key_response.public_key.is_some());
+        let host_pubkey_b64 = base64::encode(host_pubkey.as_bytes());
+        assert_eq!(
+            host_pubkey_b64,
+            change_public_key_response.public_key.unwrap()
+        );
+        exchange_message_context.checkpoint();
+        receive_message_context.checkpoint();
+
+        // test associate
+        let test_associate_request = TestAssociateRequest {
+            action: KeePassAction::TestAssociate,
+            id: "mock".to_owned(),
+            key: base64::encode(session_pubkey.as_bytes()),
+        };
+        {
+            let test_associate_response = TestAssociateResponse {
+                hash: Some("mock".to_string()),
+                id: Some("mock".to_string()),
+                nonce: None,
+                version: Some("git-credential-keepassxc mock".to_string()),
+                success: Some(KeePassBoolean(true)),
+                error: None,
+                error_code: None,
+            };
+            mock_kpxc_with_cipher_response(
+                &receive_message_context,
+                &host_seckey,
+                &session_pubkey,
+                KeePassAction::TestAssociate,
+                test_associate_response,
+            );
+        }
+        let test_associate_response = test_associate_request.send(&client_id, false);
+        assert!(test_associate_response.is_ok());
+        receive_message_context.checkpoint();
+        send_message_context.checkpoint();
+    }
+}

@@ -4,6 +4,8 @@ use crypto_box::{
     aead::{generic_array, Aead},
     PublicKey, SalsaBox, SecretKey, KEY_SIZE,
 };
+#[cfg(test)]
+use mockall::mock;
 #[cfg(windows)]
 use named_pipe::PipeClient;
 use once_cell::unsync::OnceCell;
@@ -22,25 +24,29 @@ static KEEPASS_SOCKET_NAME_LEGACY: &str = "kpxc_server";
 #[macro_export]
 macro_rules! error {
     ($($args:tt)+) => {
-        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Error, "", $($args)+)
+        #[cfg(not(test))] slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Error, "", $($args)+);
+        #[cfg(test)] eprintln!("{}: {}", slog::Level::Error, format!($($args)+));
     };
 }
 #[macro_export]
 macro_rules! warn {
     ($($args:tt)+) => {
-        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Warning, "", $($args)+)
+        #[cfg(not(test))] slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Warning, "", $($args)+);
+        #[cfg(test)] eprintln!("{}: {}", slog::Level::Warning, format!($($args)+));
     };
 }
 #[macro_export]
 macro_rules! info {
     ($($args:tt)+) => {
-        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Info, "", $($args)+)
+        #[cfg(not(test))] slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Info, "", $($args)+);
+        #[cfg(test)] eprintln!("{}: {}", slog::Level::Info, format!($($args)+));
     };
 }
 #[macro_export]
 macro_rules! debug {
     ($($args:tt)+) => {
-        slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Debug, "", $($args)+)
+        #[cfg(not(test))] slog::log!(crate::LOGGER.get().unwrap(), slog::Level::Debug, "", $($args)+);
+        #[cfg(test)] eprintln!("{}: {}", slog::Level::Debug, format!($($args)+));
     };
 }
 
@@ -139,48 +145,79 @@ fn get_stream() -> Result<Rc<RefCell<PipeClient>>> {
     })?)
 }
 
-pub fn exchange_message(request: String) -> Result<String> {
-    send_message(request)?;
-    receive_message()
+pub trait MessengingUtilsTrait {
+    fn exchange_message(request: String) -> Result<String>;
+    fn send_message(request: String) -> Result<()>;
+    fn receive_message() -> Result<String>;
 }
 
-pub fn send_message(request: String) -> Result<()> {
-    debug!("SEND: {}", request);
-    let stream_rc = get_stream()?;
-    let mut stream = stream_rc.borrow_mut();
-    stream.write_all(request.as_bytes())?;
-    Ok(())
+trait MessengingUtilsInternalTrait {
+    fn read_to_end() -> Result<String>;
 }
 
-pub fn receive_message() -> Result<String> {
-    loop {
-        let response = read_to_end()?;
-        let jsons = cut_jsons(&response);
-        if jsons.len() == 1 {
-            break Ok(response);
-        }
-        warn!(
-            "Response contains {} (> 1) JSONs, hence discarded",
-            jsons.len(),
-        );
+pub struct MessengingUtils {}
+#[cfg(test)]
+mock! {
+    pub MessengingUtils {}
+    pub trait MessengingUtilsTrait {
+        fn exchange_message(request: String) -> Result<String>;
+        fn send_message(request: String) -> Result<()>;
+        fn receive_message() -> Result<String>;
+    }
+    pub trait MessengingUtilsInternalTrait {
+        fn read_to_end() -> Result<String>;
     }
 }
 
-fn read_to_end() -> Result<String> {
-    let stream_rc = get_stream()?;
-    let mut stream = stream_rc.borrow_mut();
-    let mut response = String::new();
-    const BUF_SIZE: usize = 128;
-    let mut buf = [0u8; BUF_SIZE];
-    loop {
-        let len = stream.read(&mut buf)?;
-        response.push_str(str::from_utf8(&buf[0..len]).unwrap());
-        if len < BUF_SIZE {
-            break;
+impl MessengingUtilsTrait for MessengingUtils {
+    fn exchange_message(request: String) -> Result<String> {
+        Self::send_message(request)?;
+        Self::receive_message()
+    }
+
+    fn send_message(request: String) -> Result<()> {
+        debug!("SEND: {}", request);
+        let stream_rc = get_stream()?;
+        let mut stream = stream_rc.borrow_mut();
+        stream.write_all(request.as_bytes())?;
+        Ok(())
+    }
+
+    fn receive_message() -> Result<String> {
+        loop {
+            #[cfg(not(test))]
+            let response = Self::read_to_end()?;
+            #[cfg(test)]
+            let response = MockMessengingUtils::read_to_end()?;
+            let jsons = cut_jsons(&response);
+            if jsons.len() == 1 {
+                break Ok(response);
+            }
+            warn!(
+                "Response contains {} (> 1) JSONs, hence discarded",
+                jsons.len(),
+            );
         }
     }
-    debug!("RECV: {}", response);
-    Ok(response)
+}
+
+impl MessengingUtilsInternalTrait for MessengingUtils {
+    fn read_to_end() -> Result<String> {
+        let stream_rc = get_stream()?;
+        let mut stream = stream_rc.borrow_mut();
+        let mut response = String::new();
+        const BUF_SIZE: usize = 128;
+        let mut buf = [0u8; BUF_SIZE];
+        loop {
+            let len = stream.read(&mut buf)?;
+            response.push_str(str::from_utf8(&buf[0..len]).unwrap());
+            if len < BUF_SIZE {
+                break;
+            }
+        }
+        debug!("RECV: {}", response);
+        Ok(response)
+    }
 }
 
 fn cut_jsons(response: &str) -> Vec<&str> {
@@ -272,15 +309,15 @@ pub fn get_client_box(
 ) -> Result<Rc<SalsaBox>> {
     thread_local!(static CLIENT_BOX: OnceCell<Rc<SalsaBox>> = OnceCell::new());
     Ok(CLIENT_BOX.with(|cb| -> Result<_> {
-        Ok(cb.get_or_init(|| {
-            let client_secret_key = client_secret_key.expect(
-                "get_client_box() is called before client secret key is available, this shouldn't happen"
-            );
-            let host_public_key = host_public_key.expect(
-                "get_client_box() is called before host public key is available, this shouldn't happen",
-            );
-            Rc::new(SalsaBox::new(host_public_key, client_secret_key))
-        }).clone())
+        Ok(cb.get_or_try_init(|| -> Result<_> {
+            let client_secret_key = client_secret_key.ok_or_else(||
+                anyhow!("get_client_box() is called before client secret key is available, this shouldn't happen")
+            )?;
+            let host_public_key = host_public_key.ok_or_else(||
+                anyhow!("get_client_box() is called before host public key is available, this shouldn't happen")
+            )?;
+            Ok(Rc::new(SalsaBox::new(host_public_key, client_secret_key)))
+        })?.clone())
     })?)
 }
 
@@ -319,8 +356,129 @@ pub fn to_decrypted_json<T: AsRef<str>>(encrypted_b64: T, nonce: T) -> Result<St
 }
 
 #[cfg(test)]
+pub use tests::*;
+#[cfg(test)]
 mod tests {
     use super::*;
+    use crate::keepassxc::messages::*;
+    use once_cell::sync::OnceCell;
+    use serde::{Deserialize, Serialize};
+    use std::sync::{mpsc, Mutex};
+    use std::thread;
+
+    static TEST_HOST_KEY: OnceCell<SecretKey> = OnceCell::new();
+    static TEST_SESSION_KEY: OnceCell<SecretKey> = OnceCell::new();
+
+    pub fn test_guard() -> &'static Mutex<()> {
+        static GUARD: OnceCell<Mutex<()>> = OnceCell::new();
+        GUARD.get_or_init(|| Mutex::new(()))
+    }
+
+    pub fn test_host_secret_key() -> SecretKey {
+        TEST_HOST_KEY.get_or_init(|| generate_secret_key()).clone()
+    }
+
+    pub fn test_session_secret_key() -> SecretKey {
+        TEST_SESSION_KEY
+            .get_or_init(|| generate_secret_key())
+            .clone()
+    }
+
+    pub type ExchangeMessageContext =
+        __mock_MessengingUtils_MessengingUtilsTrait::__exchange_message::Context;
+    pub type SendMessageContext =
+        __mock_MessengingUtils_MessengingUtilsTrait::__send_message::Context;
+    pub type ReceiveMessageContext =
+        __mock_MessengingUtils_MessengingUtilsTrait::__receive_message::Context;
+    pub type ReadToEndContext =
+        __mock_MessengingUtils_MessengingUtilsInternalTrait::__read_to_end::Context;
+
+    pub fn mock_kpxc_initialise(host_secret_key: &SecretKey) -> ExchangeMessageContext {
+        let host_public_key = host_secret_key.public_key();
+        let exchange_message_context = MockMessengingUtils::exchange_message_context();
+        exchange_message_context
+            .expect()
+            .times(1)
+            .withf(|request: &String| {
+                request.contains(KeePassAction::ChangePublicKeys.to_string().as_str())
+            })
+            .return_once(move |_| {
+                let response = ChangePublicKeysResponse {
+                    action: Some(KeePassAction::ChangePublicKeys),
+                    public_key: Some(base64::encode(host_public_key.as_bytes())),
+                    version: Some("git-credential-keepassxc mock".to_string()),
+                    success: Some(KeePassBoolean(true)),
+                };
+                Ok(serde_json::to_string(&response).unwrap())
+            });
+        exchange_message_context
+    }
+
+    pub fn mock_kpxc_initialise_send_receive(
+        host_secret_key: &SecretKey,
+    ) -> (SendMessageContext, ReceiveMessageContext) {
+        let host_public_key = host_secret_key.public_key();
+
+        let send_message_context = MockMessengingUtils::send_message_context();
+        send_message_context.expect().returning(|_| Ok(()));
+
+        let receive_message_context = MockMessengingUtils::receive_message_context();
+        receive_message_context
+            .expect()
+            .times(1)
+            .return_once(move || {
+                let response = ChangePublicKeysResponse {
+                    action: Some(KeePassAction::ChangePublicKeys),
+                    public_key: Some(base64::encode(host_public_key.as_bytes())),
+                    version: Some("git-credential-keepassxc mock".to_string()),
+                    success: Some(KeePassBoolean(true)),
+                };
+                Ok(serde_json::to_string(&response).unwrap())
+            });
+
+        (send_message_context, receive_message_context)
+    }
+
+    pub fn mock_kpxc_with_cipher_response<S>(
+        context: &ReceiveMessageContext,
+        host_secret_key: &SecretKey,
+        client_public_key: &PublicKey,
+        action: KeePassAction,
+        response: S,
+    ) where
+        S: Serialize + CipherTextResponse,
+    {
+        let host_box = SalsaBox::new(client_public_key, host_secret_key);
+        let (nonce, nonce_b64) = nacl_nonce();
+        let json = serde_json::to_string(&response).unwrap();
+
+        let wrapper = GenericResponseWrapper {
+            action: action.clone(),
+            message: Some(base64::encode(
+                host_box.encrypt(&nonce, json.as_bytes()).unwrap(),
+            )),
+            nonce: Some(nonce_b64),
+            error: None,
+            error_code: None,
+        };
+
+        context
+            .expect()
+            .times(1)
+            .return_once(move || Ok(serde_json::to_string(&wrapper).unwrap()));
+    }
+
+    pub fn mock_kpxc_with_jsons(jsons: Vec<&str>) -> ReadToEndContext {
+        let read_to_end_ctx = MockMessengingUtils::read_to_end_context();
+        for json in jsons {
+            let json = json.to_string();
+            read_to_end_ctx
+                .expect()
+                .times(1)
+                .return_once(move || Ok(json));
+        }
+        read_to_end_ctx
+    }
 
     #[test]
     fn test_00_cut_jsons_single_json() {
@@ -357,5 +515,75 @@ mod tests {
         for i in 0..jsons.len() {
             assert_eq!(&jsons[i], results[i]);
         }
+    }
+
+    #[test]
+    fn test_03_discard_multiple_jsons() {
+        let jsons = vec![
+            "{\"action\":\"test-associate\",\"message\":\"\\\"\\[\"}".to_owned()
+                + "[{\"action\":\"get-logins\",\"message\":\"testing\\]\"}]",
+            "{\"action\":\"test-associate\",\"message\":\"\\\"\\[\"}".to_owned()
+                + "[{\"action\":\"get-logins\",\"message\":\"testing\\]\"}]",
+            "[{\"action\":\"get-logins\",\"message\":\"testing\\]\"}]".to_owned(),
+        ];
+
+        let read_to_end_ctx = mock_kpxc_with_jsons(jsons.iter().map(String::as_str).collect());
+        let response = MessengingUtils::receive_message();
+        assert!(response.is_ok());
+        let response = response.unwrap();
+        assert_eq!(&response, jsons.last().unwrap());
+        read_to_end_ctx.checkpoint();
+    }
+
+    #[test]
+    #[should_panic(expected = "get_client_box() is called before client secret key is available")]
+    fn test_04_fail_encrypt_before_initialise() {
+        #[derive(Serialize)]
+        struct Foo {
+            bar: String,
+        }
+        let foo = Foo {
+            bar: "Hello, world!".to_owned(),
+        };
+        let (nonce, _) = nacl_nonce();
+        let (sender, receiver) = mpsc::channel();
+        thread::spawn(move || {
+            let encrypted = to_encrypted_json(&foo, &nonce);
+            sender.send(encrypted).unwrap();
+        })
+        .join()
+        .unwrap();
+        let encrypted = receiver.recv().unwrap();
+        encrypted.unwrap();
+    }
+
+    #[test]
+    fn test_05_encryption_decryption() {
+        #[derive(Serialize, Deserialize)]
+        struct Foo {
+            bar: String,
+        }
+        let foo = Foo {
+            bar: "Hello, world!".to_owned(),
+        };
+
+        // initialise crypto_box
+        let session_seckey = test_session_secret_key();
+        let session_pubkey = session_seckey.public_key();
+        let _ = get_client_box(Some(&session_pubkey), Some(&session_seckey));
+
+        let (nonce, nonce_b64) = nacl_nonce();
+        let encrypted = to_encrypted_json(&foo, &nonce);
+        assert!(encrypted.is_ok(), "Encryption failed");
+        let encrypted = encrypted.unwrap();
+
+        let decrypted = to_decrypted_json(&encrypted, &nonce_b64);
+        assert!(decrypted.is_ok(), "Decryption failed");
+        let decrypted = decrypted.unwrap();
+        assert_eq!(
+            decrypted,
+            serde_json::to_string(&foo).unwrap(),
+            "Decrypted string differs from original JSON"
+        );
     }
 }

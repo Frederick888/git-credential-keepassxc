@@ -87,3 +87,28 @@ message_from_to_string!(
         pub url: Option<String>,
     }
 );
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_00_url_message() {
+        let string = "url=http://example.com\n".to_owned();
+        let message = GitCredentialMessage::from_str(string.as_str()).unwrap();
+        assert!(message.url.is_some());
+        assert_eq!(message.url.as_ref().unwrap().as_str(), "http://example.com");
+        assert_eq!(string + "\n", message.to_string());
+    }
+
+    #[test]
+    fn test_01_url_username_message() {
+        let string = "username=foo\nurl=http://example.com\n".to_owned();
+        let message = GitCredentialMessage::from_str(string.as_str()).unwrap();
+        assert!(message.url.is_some());
+        assert_eq!(message.url.as_ref().unwrap().as_str(), "http://example.com");
+        assert!(message.username.is_some());
+        assert_eq!(message.username.as_ref().unwrap().as_str(), "foo");
+        assert_eq!(string + "\n", message.to_string());
+    }
+}
