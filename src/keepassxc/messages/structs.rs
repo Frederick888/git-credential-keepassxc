@@ -1,8 +1,9 @@
+use super::super::errors::KeePassError;
 use super::primitives::*;
 use crate::utils::*;
 #[allow(unused_imports)]
 use crate::{debug, error, info, warn};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use crypto_box::PublicKey;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::HashMap;
@@ -28,19 +29,36 @@ where
     R: CipherTextResponse + DeserializeOwned,
     Self: Serialize,
 {
-    fn send<T: Into<String>>(&self, client_id: T) -> Result<R> {
+    fn send<T: Into<String>>(&self, client_id: T, trigger_unlock: bool) -> Result<R> {
         info!("Sending {} request", self.get_action().to_string());
         let (nonce, nonce_b64) = nacl_nonce();
         let encrypted_request_json = to_encrypted_json(&self, &nonce)?;
+        let trigger_unlock = if trigger_unlock {
+            "true".to_owned()
+        } else {
+            "".to_owned()
+        };
         let request_wrapper = GenericRequestWrapper {
             action: self.get_action(),
             message: encrypted_request_json,
             nonce: nonce_b64,
             client_id: client_id.into(),
+            trigger_unlock,
         };
-        let response_wrapper_json = exchange_message(serde_json::to_string(&request_wrapper)?)?;
-        let response_wrapper: GenericResponseWrapper =
-            serde_json::from_str(&response_wrapper_json)?;
+        send_message(serde_json::to_string(&request_wrapper)?)?;
+        let response_wrapper = loop {
+            let response_wrapper_json = receive_message()?;
+            let response_wrapper: GenericResponseWrapper =
+                serde_json::from_str(&response_wrapper_json)?;
+            if response_wrapper.action == self.get_action() {
+                break response_wrapper;
+            }
+            warn!(
+                "Unexpected action {} in response, hence discarded: {}",
+                response_wrapper.action.to_string(),
+                response_wrapper_json
+            );
+        };
         response_wrapper.log();
         if response_wrapper.message.is_some() && response_wrapper.nonce.is_some() {
             let (message, nonce) = (
@@ -51,7 +69,10 @@ where
             let response: R = serde_json::from_str(&decrypted_response_json)?;
             Ok(response)
         } else {
-            Err(anyhow!("Request {} failed", self.get_action().to_string()))
+            Err(KeePassError {
+                message: format!("Request {} failed", self.get_action().to_string()),
+                response: response_wrapper,
+            })?
         }
     }
 
@@ -73,7 +94,7 @@ macro_rules! impl_cipher_text {
     };
 }
 impl_cipher_text!([
-    // (GetDatabaseHashRequest, GetDatabaseHashResponse),
+    (GetDatabaseHashRequest, GetDatabaseHashResponse),
     (AssociateRequest, AssociateResponse),
     (TestAssociateRequest, TestAssociateResponse),
     (GetLoginsRequest, GetLoginsResponse),
@@ -89,9 +110,11 @@ pub struct GenericRequestWrapper {
     pub nonce: String,
     #[serde(rename = "clientID")]
     pub client_id: String,
+    #[serde(rename = "triggerUnlock", skip_serializing_if = "String::is_empty")]
+    pub trigger_unlock: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GenericResponseWrapper {
     pub action: KeePassAction,
     pub message: Option<String>,
@@ -171,30 +194,30 @@ impl PlainTextResponse for ChangePublicKeysResponse {}
  * https://github.com/keepassxreboot/keepassxc-browser/blob/develop/keepassxc-protocol.md#get-databasehash
  */
 
-// #[derive(Serialize, Deserialize, Debug)]
-// pub struct GetDatabaseHashRequest {
-//     pub action: KeePassAction,
-// }
-//
-// impl GetDatabaseHashRequest {
-//     pub fn new() -> Self {
-//         Self {
-//             action: KeePassAction::GetDatabaseHash,
-//         }
-//     }
-// }
-//
-// #[derive(Serialize, Deserialize, Debug)]
-// pub struct GetDatabaseHashResponse {
-//     pub action: String,
-//     pub hash: Option<String>,
-//     [> generic fields <]
-//     pub version: Option<String>,
-//     pub success: Option<KeePassBoolean>,
-//     pub error: Option<String>,
-//     #[serde(rename = "errorCode")]
-//     pub error_code: Option<String>,
-// }
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetDatabaseHashRequest {
+    pub action: KeePassAction,
+}
+
+impl GetDatabaseHashRequest {
+    pub fn new() -> Self {
+        Self {
+            action: KeePassAction::GetDatabaseHash,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetDatabaseHashResponse {
+    pub hash: Option<String>,
+    pub nonce: Option<String>,
+    /* generic fields */
+    pub version: Option<String>,
+    pub success: Option<KeePassBoolean>,
+    pub error: Option<String>,
+    #[serde(rename = "errorCode")]
+    pub error_code: Option<String>,
+}
 
 /*
  * associate

@@ -11,6 +11,12 @@ args:
       short: s
       help: Specify KeePassXC socket path
       takes_value: true
+  - unlock:
+      long: unlock
+      help: |-
+        Try unlocking database, applies to get, store and erase only.
+        Takes one argument in the format of [<MAX_RETRIES>[,<INTERVAL_MS>]]. Use 0 to retry indefinitely. The default interval is 1000ms.
+      takes_value: true
   - verbose:
       short: v
       multiple: true
