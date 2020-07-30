@@ -76,3 +76,4 @@ script:
   - cargo build --verbose --release --features=encryption $FLAGS
   - cargo build --verbose --release --features=yubikey $FLAGS
   - cargo build --verbose --release --features=all $FLAGS
+  - cargo test --features=all $FLAGS

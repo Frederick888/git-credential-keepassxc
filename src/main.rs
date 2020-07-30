@@ -1,3 +1,4 @@
+mod cli;
 mod config;
 mod git;
 mod keepassxc;
@@ -5,15 +6,18 @@ mod utils;
 
 use anyhow::{anyhow, Result};
 use clap::{App, ArgMatches};
+use cli::UnlockOptions;
 use config::{Caller, Config, Database};
 use crypto_box::{PublicKey, SecretKey};
 use git::GitCredentialMessage;
-use keepassxc::{messages::*, Group};
+use keepassxc::{errors::*, messages::*, Group};
 use once_cell::sync::OnceCell;
 use slog::{Drain, Level, Logger};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::thread;
+use std::time::Duration;
 use sysinfo::{get_current_pid, ProcessExt, System, SystemExt};
 use utils::*;
 
@@ -73,24 +77,74 @@ fn read_git_request() -> Result<(GitCredentialMessage, String)> {
     Ok((git_req, url))
 }
 
-fn associated_databases<T: AsRef<str>>(client_id: T, config: &Config) -> Result<Vec<Database>> {
+fn associated_databases<T: AsRef<str>>(
+    config: &Config,
+    client_id: T,
+    unlock_options: &Option<UnlockOptions>,
+) -> Result<Vec<Database>> {
     let databases: Vec<_> = config
         .get_databases()?
         .iter()
         .filter(|ref db| {
-            let taso_req = TestAssociateRequest::new(db.id.as_str(), db.pkey.as_str());
-            if let Ok(taso_resp) = taso_req.send(client_id.as_ref()) {
-                taso_resp
-                    .success
-                    .unwrap_or_else(|| KeePassBoolean(false))
-                    .into()
-            } else {
-                warn!(
-                    "Failed to authenticate against database {} using stored key",
-                    &db.id
-                );
-                false
+            let mut remain_retries = unlock_options.as_ref().map_or_else(|| 0, |v| v.max_retries);
+            let mut success = false;
+            loop {
+                let taso_req = TestAssociateRequest::new(db.id.as_str(), db.pkey.as_str());
+                // trigger unlock if command line argument is given
+                let taso_resp = taso_req.send(client_id.as_ref(), unlock_options.is_some());
+                let database_locked = match &taso_resp {
+                    Ok(_) => false,
+                    Err(e) => {
+                        if let Some(keepass_error) = e.downcast_ref::<KeePassError>() {
+                            keepass_error.is_database_locked()
+                        } else {
+                            false
+                        }
+                    }
+                };
+                if let Ok(ref taso_resp) = taso_resp {
+                    success = taso_resp
+                        .success
+                        .clone()
+                        .unwrap_or_else(|| KeePassBoolean(false))
+                        .into();
+                }
+                if taso_resp.is_err() || !success {
+                    warn!(
+                        "Failed to authenticate against database {} using stored key",
+                        db.id
+                    );
+                }
+                if success || !database_locked || unlock_options.is_none() {
+                    break;
+                }
+                // loop get-databasehash until unlocked
+                while remain_retries > 0 || unlock_options.as_ref().unwrap().max_retries == 0 {
+                    warn!(
+                        "Database {} is locked, gonna retry in {}ms (Remaining: {})",
+                        db.id,
+                        unlock_options.as_ref().unwrap().interval,
+                        remain_retries
+                    );
+                    thread::sleep(Duration::from_millis(
+                        unlock_options.as_ref().unwrap().interval,
+                    ));
+
+                    let gh_req = GetDatabaseHashRequest::new();
+                    if gh_req.send(client_id.as_ref(), false).is_ok() {
+                        info!("Database {} is unlocked", db.id);
+                        break;
+                    }
+                    if unlock_options.as_ref().unwrap().max_retries != 0 {
+                        remain_retries -= 1;
+                    }
+                }
+                // still not unlocked, break
+                if remain_retries == 0 && unlock_options.as_ref().unwrap().max_retries != 0 {
+                    break;
+                }
             }
+            success
         })
         .cloned()
         .collect();
@@ -133,7 +187,7 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     let id_pubkey = id_seckey.public_key();
 
     let aso_req = AssociateRequest::new(&session_pubkey, &id_pubkey);
-    let aso_resp = aso_req.send(&client_id)?;
+    let aso_resp = aso_req.send(&client_id, false)?;
     let database_id = aso_resp.id.ok_or_else(|| anyhow!("Association failed"))?;
 
     // try to create a new group even if it already exists, KeePassXC will do the deduplication
@@ -142,7 +196,7 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         .and_then(|m| m.value_of("group"))
         .expect("Group name not specified (there's a default one though, bug?)");
     let cng_req = CreateNewGroupRequest::new(group_name);
-    let cng_resp = cng_req.send(&client_id)?;
+    let cng_resp = cng_req.send(&client_id, false)?;
     let group = Group::new(cng_resp.name, cng_resp.uuid);
 
     // read existing or create new config
@@ -310,7 +364,9 @@ fn verify_caller(config: &Config) -> Result<Option<(usize, PathBuf)>> {
     if config.count_callers() == 0
         && (cfg!(not(feature = "strict-caller")) || config.count_databases() == 0)
     {
-        info!("Caller verification skipped as no caller profiles defined and strict-caller disabled");
+        info!(
+            "Caller verification skipped as no caller profiles defined and strict-caller disabled"
+        );
         return Ok(None);
     }
     let pid = get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;
@@ -352,8 +408,13 @@ fn verify_caller(config: &Config) -> Result<Option<(usize, PathBuf)>> {
 
 /// Returns all entries from KeePassXC except for expired ones (which are not returned by KeePassXC
 /// actually, but better to be safe than sorry)
-fn get_logins_for<T: AsRef<str>>(config: &Config, client_id: T, url: T) -> Result<Vec<LoginEntry>> {
-    let databases = associated_databases(client_id.as_ref(), config)?;
+fn get_logins_for<T: AsRef<str>>(
+    config: &Config,
+    client_id: T,
+    url: T,
+    unlock_options: &Option<UnlockOptions>,
+) -> Result<Vec<LoginEntry>> {
+    let databases = associated_databases(config, client_id.as_ref(), unlock_options)?;
     let id_key_pairs: Vec<_> = databases
         .iter()
         .map(|d| (d.id.as_str(), d.pkey.as_str()))
@@ -361,7 +422,7 @@ fn get_logins_for<T: AsRef<str>>(config: &Config, client_id: T, url: T) -> Resul
 
     // ask KeePassXC for logins
     let gl_req = GetLoginsRequest::new(url.as_ref(), None, None, &id_key_pairs[..]);
-    let gl_resp = gl_req.send(client_id.as_ref())?;
+    let gl_resp = gl_req.send(client_id.as_ref(), false)?;
 
     let login_entries: Vec<_> = gl_resp
         .entries
@@ -396,7 +457,10 @@ fn filter_kph_logins(login_entries: &[LoginEntry]) -> (u32, Vec<&LoginEntry>) {
     (kph_false, login_entries)
 }
 
-fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
+fn get_logins<T: AsRef<Path>>(
+    config_path: T,
+    unlock_options: &Option<UnlockOptions>,
+) -> Result<()> {
     let config = Config::read_from(config_path.as_ref())?;
     let _verify_caller = verify_caller(&config)?;
     // read credential request
@@ -425,7 +489,7 @@ fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
     // start session
     let (client_id, _, _) = start_session()?;
 
-    let login_entries = get_logins_for(&config, &client_id, &url)?;
+    let login_entries = get_logins_for(&config, &client_id, &url, unlock_options)?;
     info!("KeePassXC return {} login(s)", login_entries.len());
     let (kph_false, mut login_entries) = filter_kph_logins(&login_entries);
     if kph_false > 0 {
@@ -463,7 +527,10 @@ fn get_logins<T: AsRef<Path>>(config_path: T) -> Result<()> {
     Ok(())
 }
 
-fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
+fn store_login<T: AsRef<Path>>(
+    config_path: T,
+    unlock_options: &Option<UnlockOptions>,
+) -> Result<()> {
     let config = Config::read_from(config_path.as_ref())?;
     verify_caller(&config)?;
     // read credential request
@@ -478,31 +545,32 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
         return Err(anyhow!("Password is missing"));
     }
 
-    let login_entries = get_logins_for(&config, &client_id, &url).and_then(|entries| {
-        let (kph_false, entries) = filter_kph_logins(&entries);
-        if kph_false > 0 {
-            info!("{} login(s) were labeled as KPH: git == false", kph_false);
-        }
-        let username = git_req.username.as_ref().unwrap();
-        let entries: Vec<_> = entries
-            .into_iter()
-            .filter(|entry| entry.login == *username)
-            .cloned()
-            .collect();
-        info!(
-            "{} login(s) left after filtering by username",
-            entries.len()
-        );
-        if entries.is_empty() {
-            // this Err is never used
-            Err(anyhow!(
-                "No remaining logins after filtering out {} KPH: git == false one(s)",
-                kph_false
-            ))
-        } else {
-            Ok(entries)
-        }
-    });
+    let login_entries =
+        get_logins_for(&config, &client_id, &url, unlock_options).and_then(|entries| {
+            let (kph_false, entries) = filter_kph_logins(&entries);
+            if kph_false > 0 {
+                info!("{} login(s) were labeled as KPH: git == false", kph_false);
+            }
+            let username = git_req.username.as_ref().unwrap();
+            let entries: Vec<_> = entries
+                .into_iter()
+                .filter(|entry| entry.login == *username)
+                .cloned()
+                .collect();
+            info!(
+                "{} login(s) left after filtering by username",
+                entries.len()
+            );
+            if entries.is_empty() {
+                // this Err is never used
+                Err(anyhow!(
+                    "No remaining logins after filtering out {} KPH: git == false one(s)",
+                    kph_false
+                ))
+            } else {
+                Ok(entries)
+            }
+        });
 
     let sl_req = if let Ok(login_entries) = login_entries {
         if login_entries.len() == 1 {
@@ -559,7 +627,7 @@ fn store_login<T: AsRef<Path>>(config_path: T) -> Result<()> {
             None,
         )
     };
-    let sl_resp = sl_req.send(&client_id)?;
+    let sl_resp = sl_req.send(&client_id, false)?;
     if let Some(success) = sl_resp.success {
         // wtf?!?!
         if success.0
@@ -645,6 +713,13 @@ fn real_main() -> Result<()> {
             s.set(path).expect("Failed to set socket path, bug?");
         });
     };
+    let unlock_options = {
+        if let Some(unlock_options) = args.value_of("unlock") {
+            Some(UnlockOptions::from_str(unlock_options)?)
+        } else {
+            None
+        }
+    };
 
     let subcommand = args
         .subcommand_name()
@@ -655,8 +730,8 @@ fn real_main() -> Result<()> {
         "encrypt" => encrypt(config_path, &args),
         "decrypt" => decrypt(config_path),
         "caller" => caller(config_path, &args),
-        "get" => get_logins(config_path),
-        "store" => store_login(config_path),
+        "get" => get_logins(config_path, &unlock_options),
+        "store" => store_login(config_path, &unlock_options),
         "erase" => erase_login(),
         _ => Err(anyhow!(anyhow!("Unrecognised subcommand"))),
     }

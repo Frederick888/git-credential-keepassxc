@@ -1,4 +1,5 @@
 pub mod messages;
+pub mod errors;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize, Default, Debug)]

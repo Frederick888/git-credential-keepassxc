@@ -140,10 +140,35 @@ fn get_stream() -> Result<Rc<RefCell<PipeClient>>> {
 }
 
 pub fn exchange_message(request: String) -> Result<String> {
+    send_message(request)?;
+    receive_message()
+}
+
+pub fn send_message(request: String) -> Result<()> {
     debug!("SEND: {}", request);
     let stream_rc = get_stream()?;
     let mut stream = stream_rc.borrow_mut();
     stream.write_all(request.as_bytes())?;
+    Ok(())
+}
+
+pub fn receive_message() -> Result<String> {
+    loop {
+        let response = read_to_end()?;
+        let jsons = cut_jsons(&response);
+        if jsons.len() == 1 {
+            break Ok(response);
+        }
+        warn!(
+            "Response contains {} (> 1) JSONs, hence discarded",
+            jsons.len(),
+        );
+    }
+}
+
+fn read_to_end() -> Result<String> {
+    let stream_rc = get_stream()?;
+    let mut stream = stream_rc.borrow_mut();
     let mut response = String::new();
     const BUF_SIZE: usize = 128;
     let mut buf = [0u8; BUF_SIZE];
@@ -156,6 +181,52 @@ pub fn exchange_message(request: String) -> Result<String> {
     }
     debug!("RECV: {}", response);
     Ok(response)
+}
+
+fn cut_jsons(response: &str) -> Vec<&str> {
+    let mut results = Vec::new();
+
+    let matching_symbol = |c: &char| -> Option<char> {
+        match c {
+            '{' => Some('}'),
+            '}' => Some('{'),
+            '[' => Some(']'),
+            ']' => Some('['),
+            '"' => Some('"'),
+            _ => None,
+        }
+    };
+    let is_symbol = |c: &char| -> bool { matching_symbol(c).is_some() };
+
+    let mut stack = Vec::new();
+    let mut start = 0;
+    let mut current = 0;
+    let mut escape = false;
+    for c in response.chars() {
+        if stack.is_empty() && current > 0 {
+            results.push(&response[start..current]);
+            start = current;
+        }
+        if !escape && c == '\\' {
+            escape = true;
+            current += 1;
+            continue;
+        }
+        if !is_symbol(&c) || escape {
+            escape = false;
+            current += 1;
+            continue;
+        }
+        if !stack.is_empty() && stack.last().unwrap() == &matching_symbol(&c).unwrap() {
+            stack.pop();
+        } else {
+            stack.push(c);
+        }
+        current += 1;
+    }
+    results.push(&response[start..]);
+
+    results
 }
 
 pub fn to_public_key<T: AsRef<str>>(public_key_b64: T) -> Result<PublicKey> {
@@ -245,4 +316,46 @@ pub fn to_decrypted_json<T: AsRef<str>>(encrypted_b64: T, nonce: T) -> Result<St
     let json = String::from_utf8(decrypted_json)?;
     debug!("DEC : {}", json);
     Ok(json)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_00_cut_jsons_single_json() {
+        let response = "{\"action\":\"test-associate\"}".to_owned();
+        let results = cut_jsons(&response);
+        assert_eq!(1, results.len());
+        assert_eq!(&response, results[0]);
+    }
+
+    #[test]
+    fn test_01_cut_jsons_multiple_jsons() {
+        let jsons = vec![
+            "{\"action\":\"test-associate\"}".to_owned(),
+            "{\"action\":\"get-logins\",\"message\":\"testing\"}".to_owned(),
+            "{\"action\":\"set-login\",\"message\":\"testing\"}".to_owned(),
+        ];
+        let response = jsons.iter().fold(String::new(), |acc, j| acc + &j);
+        let results = cut_jsons(&response);
+        assert_eq!(jsons.len(), results.len());
+        for i in 0..jsons.len() {
+            assert_eq!(&jsons[i], results[i]);
+        }
+    }
+
+    #[test]
+    fn test_02_cut_jsons_with_escaping() {
+        let jsons = vec![
+            "{\"action\":\"test-associate\",\"message\":\"\\\"\\[\"}".to_owned(),
+            "[{\"action\":\"get-logins\",\"message\":\"testing\\]\"}]".to_owned(),
+        ];
+        let response = jsons.iter().fold(String::new(), |acc, j| acc + &j);
+        let results = cut_jsons(&response);
+        assert_eq!(jsons.len(), results.len());
+        for i in 0..jsons.len() {
+            assert_eq!(&jsons[i], results[i]);
+        }
+    }
 }
