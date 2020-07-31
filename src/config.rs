@@ -481,17 +481,17 @@ impl Database {
         id: String,
         id_seckey: crypto_box::SecretKey,
         group: crate::keepassxc::Group,
-    ) -> Result<Self> {
+    ) -> Self {
         let id_seckey_b64 = base64::encode(id_seckey.to_bytes());
         let id_pubkey = id_seckey.public_key();
         let id_pubkey_b64 = base64::encode(id_pubkey.as_bytes());
-        Ok(Self {
+        Self {
             id,
             key: id_seckey_b64,
             pkey: id_pubkey_b64,
             group: group.name,
             group_uuid: group.uuid,
-        })
+        }
     }
 }
 

@@ -226,7 +226,7 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         config_path.as_ref().to_string_lossy()
     );
     config_file.add_database(
-        Database::new(database_id, id_seckey, group)?,
+        Database::new(database_id, id_seckey, group),
         encryption.is_some(),
     )?;
     config_file.write_to(&config_path)?;
