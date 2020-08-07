@@ -8,8 +8,11 @@ use serde::{de, Deserialize, Serialize};
 use std::cell::RefCell;
 use std::fs;
 use std::io::prelude::*;
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::string::ToString;
+
 #[cfg(feature = "encryption")]
 use {
     aes_gcm::aead::{Aead, NewAead},
@@ -67,7 +70,15 @@ impl Config {
 
     pub fn write_to<T: AsRef<Path>>(&self, config_path: T) -> Result<()> {
         let json = serde_json::to_string_pretty(self)?;
-        let mut file = fs::File::create(config_path.as_ref())?;
+        let mut file_options = fs::OpenOptions::new();
+        #[cfg(unix)]
+        file_options.mode(0o600);
+        let mut file = file_options
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(config_path.as_ref())?;
+
         file.write_all(&json.as_bytes())?;
         Ok(())
     }
@@ -736,6 +747,8 @@ mod tests {
     use crate::utils::generate_secret_key;
     use hmac::Hmac;
     use sha1::Sha1;
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
 
     pub type HmacSha1 = Hmac<Sha1>;
 
@@ -777,7 +790,7 @@ mod tests {
             assert_eq!(databases[0].key, base64::encode(secret_key.to_bytes()));
         }
 
-        std::fs::remove_file(config_path).unwrap();
+        fs::remove_file(config_path).unwrap();
     }
 
     #[test]
@@ -830,6 +843,93 @@ mod tests {
             let _config = Config::read_from(&config_path).unwrap();
         }
 
-        std::fs::remove_file(config_path).unwrap();
+        fs::remove_file(config_path).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_github_15_00_new_config_file_permissions() {
+        let config_path = {
+            let mut temp = std::env::temp_dir();
+            temp.push(format!("{}.test_github_15_00.json", clap::crate_name!()));
+            assert!(
+                !temp.exists(),
+                "Test configuration file {} already exists",
+                temp.to_string_lossy()
+            );
+            temp
+        };
+        let group = Group::new("mock group", "mock uuid");
+        let secret_key = generate_secret_key();
+        let database = Database::new(
+            "mock database".to_owned(),
+            secret_key.clone(),
+            group.clone(),
+        );
+
+        {
+            let mut config = Config::new();
+            config.add_database(database.clone(), false).unwrap();
+            config.write_to(&config_path).unwrap();
+        }
+        {
+            assert!(config_path.exists());
+            let metadata = config_path.metadata().unwrap();
+            let permissions = metadata.permissions();
+            assert_eq!(permissions.mode() & 0o777, 0o600);
+        }
+
+        fs::remove_file(config_path).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_github_15_01_existing_config_file_permissions() {
+        let config_path = {
+            let mut temp = std::env::temp_dir();
+            temp.push(format!("{}.test_github_15_01.json", clap::crate_name!()));
+            assert!(
+                !temp.exists(),
+                "Test configuration file {} already exists",
+                temp.to_string_lossy()
+            );
+            temp
+        };
+        let group = Group::new("mock group", "mock uuid");
+        let secret_key = generate_secret_key();
+        let database = Database::new(
+            "mock database".to_owned(),
+            secret_key.clone(),
+            group.clone(),
+        );
+
+        {
+            let mut config = Config::new();
+            config.add_database(database.clone(), false).unwrap();
+            config.write_to(&config_path).unwrap();
+        }
+        {
+            assert!(config_path.exists());
+            let config_file = fs::File::open(&config_path).unwrap();
+            let mut permissions = config_file.metadata().unwrap().permissions();
+            permissions.set_mode(0o644);
+            config_file.set_permissions(permissions).unwrap();
+        }
+        {
+            assert!(config_path.exists());
+            let mut database = database.clone();
+            database.id = "mock database 2".to_owned();
+            let mut config = Config::read_from(&config_path).unwrap();
+            config.add_database(database, false).unwrap();
+            config.write_to(&config_path).unwrap();
+        }
+        {
+            assert!(config_path.exists());
+            let config_file = fs::File::open(&config_path).unwrap();
+            let permissions = config_file.metadata().unwrap().permissions();
+            assert_eq!(permissions.mode() & 0o777, 0o644);
+        }
+
+        fs::remove_file(config_path).unwrap();
     }
 }
