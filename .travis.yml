@@ -77,11 +77,11 @@ script:
   - cargo build --verbose --release --features=yubikey $FLAGS
   - cargo build --verbose --release --features=all $FLAGS
   - cargo test --features=all $FLAGS
+  - printf "TRAVIS_BRANCH = %s\n" "$TRAVIS_BRANCH"
+  - printf "TRAVIS_PULL_REQUEST = %s\n" "$TRAVIS_PULL_REQUEST"
+  - printf "TRAVIS_PULL_REQUEST_BRANCH = %s\n" "$TRAVIS_PULL_REQUEST_BRANCH"
+  - git show --shortstat
   - |-
-    printf "TRAVIS_BRANCH = %s\n" "$TRAVIS_BRANCH"
-    printf "TRAVIS_PULL_REQUEST = %s\n" "$TRAVIS_PULL_REQUEST"
-    printf "TRAVIS_PULL_REQUEST_BRANCH = %s\n" "$TRAVIS_PULL_REQUEST_BRANCH"
-    git show --shortstat
     if [[ "$TRAVIS_PULL_REQUEST" != "false" ]]; then
       git checkout "$TRAVIS_PULL_REQUEST_BRANCH"
       MERGE_TEST="1"
@@ -90,7 +90,7 @@ script:
       MERGE_TEST="1"
     fi
     if [[ -n "$MERGE_TEST" ]]; then
-      git show --shortstat
+      git status --short --branch
       git merge --no-edit --no-commit "$TRAVIS_BRANCH"
       cargo build --verbose --release $FLAGS
       cargo build --verbose --release --features=notification $FLAGS
