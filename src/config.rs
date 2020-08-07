@@ -8,11 +8,10 @@ use serde::{de, Deserialize, Serialize};
 use std::cell::RefCell;
 use std::fs;
 use std::io::prelude::*;
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::string::ToString;
-
-#[cfg(target_family = "unix")]
-use std::os::unix::prelude::*;
 
 #[cfg(feature = "encryption")]
 use {
@@ -72,13 +71,13 @@ impl Config {
     pub fn write_to<T: AsRef<Path>>(&self, config_path: T) -> Result<()> {
         let json = serde_json::to_string_pretty(self)?;
         let mut file_options = fs::OpenOptions::new();
-        #[cfg(target_family = "unix")]
+        #[cfg(unix)]
         file_options.mode(0o600);
         let mut file = file_options
-                        .create(true)
-                        .write(true)
-                        .truncate(true)
-                        .open(config_path.as_ref())?;
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(config_path.as_ref())?;
 
         file.write_all(&json.as_bytes())?;
         Ok(())
