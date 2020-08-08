@@ -700,6 +700,7 @@ fn real_main() -> Result<()> {
 
     let config_path = {
         if let Some(path) = args.value_of("config") {
+            info!("Configuration file path is set to {} by user", path);
             PathBuf::from(path)
         } else {
             let base_dirs = directories_next::BaseDirs::new()
@@ -708,6 +709,7 @@ fn real_main() -> Result<()> {
         }
     };
     if let Some(path) = args.value_of("socket") {
+        info!("Socket path is set to {} by user", path);
         let path = PathBuf::from(path);
         utils::SOCKET_PATH.with(|s| {
             s.set(path).expect("Failed to set socket path, bug?");
@@ -715,6 +717,7 @@ fn real_main() -> Result<()> {
     };
     let unlock_options = {
         if let Some(unlock_options) = args.value_of("unlock") {
+            info!("Database unlock option is given by user");
             Some(UnlockOptions::from_str(unlock_options)?)
         } else {
             None
@@ -738,14 +741,11 @@ fn real_main() -> Result<()> {
 }
 
 fn main() {
-    if let Err(ref e) = real_main() {
-        error!(
-            "{}, Caused by: {}, Message: {}",
-            e.root_cause(),
-            e.source()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "N/A".to_string()),
-            e
-        );
+    if let Err(e) = real_main() {
+        let source = e
+            .source()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "N/A".to_string());
+        error!("{}, Caused by: {}", e, source);
     }
 }

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, Context, Error, Result};
 use crypto_box::{
     self,
     aead::{generic_array, Aead},
@@ -49,15 +49,6 @@ macro_rules! debug {
         #[cfg(test)] eprintln!("{}: {}", slog::Level::Debug, format!($($args)+));
     };
 }
-
-#[derive(Debug)]
-pub struct SocketPathError;
-impl fmt::Display for SocketPathError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Failed to find KeePassXC socket")
-    }
-}
-impl std::error::Error for SocketPathError {}
 
 thread_local!(pub static SOCKET_PATH: OnceCell<PathBuf> = OnceCell::new());
 pub fn get_socket_path() -> Result<PathBuf> {
@@ -127,7 +118,14 @@ fn get_stream() -> Result<Rc<RefCell<UnixStream>>> {
     Ok(STREAM.with(|s| -> Result<_> {
         Ok(s.get_or_try_init(|| -> Result<_> {
             let path = get_socket_path()?;
-            Ok(Rc::new(RefCell::new(UnixStream::connect(path)?)))
+            Ok(Rc::new(RefCell::new(
+                UnixStream::connect(&path).with_context(|| {
+                    format!(
+                        "Failed to connect to Unix socket {}",
+                        path.to_string_lossy()
+                    )
+                })?,
+            )))
         })?
         .clone())
     })?)
@@ -139,7 +137,11 @@ fn get_stream() -> Result<Rc<RefCell<PipeClient>>> {
     Ok(STREAM.with(|s| -> Result<_> {
         Ok(s.get_or_try_init(|| -> Result<_> {
             let path = get_socket_path()?;
-            Ok(Rc::new(RefCell::new(PipeClient::connect(path)?)))
+            Ok(Rc::new(RefCell::new(
+                PipeClient::connect(&path).with_context(|| {
+                    format!("Failed to connect to named pipe {}", path.to_string_lossy())
+                })?,
+            )))
         })?
         .clone())
     })?)

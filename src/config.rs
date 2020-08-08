@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
 use crate::{debug, error, info, warn};
 use aes_gcm::aead::generic_array::{typenum, GenericArray};
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 #[cfg(test)]
 use mockall::automock;
 use serde::{de, Deserialize, Serialize};
@@ -63,12 +63,30 @@ impl Config {
     }
 
     pub fn read_from<T: AsRef<Path>>(config_path: T) -> Result<Self> {
-        let json = fs::read_to_string(config_path.as_ref())?;
-        let config: Config = serde_json::from_str(&json)?;
+        info!(
+            "Reading configuration from {}",
+            config_path.as_ref().to_string_lossy()
+        );
+        let json = fs::read_to_string(config_path.as_ref()).with_context(|| {
+            format!(
+                "Failed to read configuration from {}",
+                config_path.as_ref().to_string_lossy()
+            )
+        })?;
+        let config: Config = serde_json::from_str(&json).with_context(|| {
+            format!(
+                "Invalid configuration file {}",
+                config_path.as_ref().to_string_lossy()
+            )
+        })?;
         Ok(config)
     }
 
     pub fn write_to<T: AsRef<Path>>(&self, config_path: T) -> Result<()> {
+        info!(
+            "Writing configuration to {}",
+            config_path.as_ref().to_string_lossy()
+        );
         let json = serde_json::to_string_pretty(self)?;
         let mut file_options = fs::OpenOptions::new();
         #[cfg(unix)]
@@ -77,9 +95,20 @@ impl Config {
             .create(true)
             .write(true)
             .truncate(true)
-            .open(config_path.as_ref())?;
+            .open(config_path.as_ref())
+            .with_context(|| {
+                format!(
+                    "Failed to open configuration to {}",
+                    config_path.as_ref().to_string_lossy()
+                )
+            })?;
 
-        file.write_all(&json.as_bytes())?;
+        file.write_all(&json.as_bytes()).with_context(|| {
+            format!(
+                "Failed to write configuration to {}",
+                config_path.as_ref().to_string_lossy()
+            )
+        })?;
         Ok(())
     }
 
@@ -715,7 +744,7 @@ impl YubiKeyTrait for YubiKey {
             .set_mode(yubico_config::Mode::Sha1)
             .set_slot(slot);
         debug!("Challenge: {}", challenge);
-        info!("Retrieving response, tap your YubiKey if needed");
+        info!("Sending HMAC challenge, tap your YubiKey if needed");
         #[cfg(feature = "notification")]
         {
             use notify_rust::{Notification, Timeout};
@@ -734,8 +763,8 @@ impl YubiKeyTrait for YubiKey {
         let hmac_result = self
             .yubi
             .challenge_response_hmac(challenge.as_bytes(), config)?;
-        debug!("Response: {:?}", &*hmac_result);
-        info!("Response received");
+        debug!("HMAC response: {:?}", &*hmac_result);
+        info!("HMAC response received");
         Ok((*hmac_result).iter().cloned().collect())
     }
 }

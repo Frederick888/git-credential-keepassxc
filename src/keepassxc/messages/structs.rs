@@ -79,7 +79,7 @@ where
             Ok(response)
         } else {
             Err(KeePassError {
-                message: format!("Request {} failed", self.get_action().to_string()),
+                message: response_wrapper.error_message(),
                 response: response_wrapper,
             })?
         }
@@ -136,13 +136,17 @@ pub struct GenericResponseWrapper {
 impl GenericResponseWrapper {
     fn log(&self) {
         if self.message.is_none() {
-            warn!(
-                "Request {} failed. Error: {}, Error Code: {}",
-                self.action.to_string(),
-                self.error.clone().unwrap_or_else(|| "N/A".to_owned()),
-                self.error_code.clone().unwrap_or_else(|| "N/A".to_owned())
-            );
+            warn!("{}", self.error_message());
         }
+    }
+
+    fn error_message(&self) -> String {
+        format!(
+            "Request {} failed, {} (code: {})",
+            self.action.to_string(),
+            self.error.clone().unwrap_or_else(|| "N/A".to_owned()),
+            self.error_code.clone().unwrap_or_else(|| "N/A".to_owned())
+        )
     }
 }
 
