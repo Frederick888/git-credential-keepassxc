@@ -27,6 +27,9 @@ use {
     yubico_manager::Yubico,
 };
 
+#[cfg(unix)]
+const DEFAULT_CONFIG_MODE: u32 = 0o600;
+
 #[cfg(any(feature = "encryption", feature = "yubikey"))]
 const HMAC_SHA1_CHALLENGE_LENGTH: usize = 64usize;
 #[cfg(all(feature = "encryption", feature = "yubikey"))]
@@ -90,7 +93,7 @@ impl Config {
         let json = serde_json::to_string_pretty(self)?;
         let mut file_options = fs::OpenOptions::new();
         #[cfg(unix)]
-        file_options.mode(0o600);
+        file_options.mode(DEFAULT_CONFIG_MODE);
         let mut file = file_options
             .create(true)
             .write(true)
@@ -905,7 +908,7 @@ mod tests {
             assert!(config_path.exists());
             let metadata = config_path.metadata().unwrap();
             let permissions = metadata.permissions();
-            assert_eq!(permissions.mode() & 0o777, 0o600);
+            assert_eq!(permissions.mode() & 0o777, DEFAULT_CONFIG_MODE);
         }
 
         fs::remove_file(config_path).unwrap();
