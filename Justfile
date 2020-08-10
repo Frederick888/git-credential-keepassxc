@@ -22,6 +22,9 @@ build:
         cargo build --release --features=$feature; \
     done
 
+build-win:
+    env PKG_CONFIG_ALLOW_CROSS=1 cargo build --features=all --release --target=x86_64-pc-windows-gnu
+
 coverage:
     env CARGO_INCREMENTAL=0 RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort" \
         RUSTDOCFLAGS="-Cpanic=abort" cargo build --features=all
