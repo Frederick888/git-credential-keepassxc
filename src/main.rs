@@ -747,5 +747,6 @@ fn main() {
             .map(|s| s.to_string())
             .unwrap_or_else(|| "N/A".to_string());
         error!("{}, Caused by: {}", e, source);
+        std::process::exit(1);
     }
 }
