@@ -18,8 +18,10 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::str;
 
-static KEEPASS_SOCKET_NAME: &str = "org.keepassxc.KeePassXC.BrowserServer";
-static KEEPASS_SOCKET_NAME_LEGACY: &str = "kpxc_server";
+#[cfg(windows)]
+const NAMED_PIPE_CONNECT_TIMEOUT_MS: u32 = 100;
+const KEEPASS_SOCKET_NAME: &str = "org.keepassxc.KeePassXC.BrowserServer";
+const KEEPASS_SOCKET_NAME_LEGACY: &str = "kpxc_server";
 
 #[macro_export]
 macro_rules! error {
@@ -58,10 +60,11 @@ pub fn get_socket_path() -> Result<PathBuf> {
                 .ok_or_else(|| anyhow!("Failed to initialise base_dirs"))?;
             let get_socket_path_with_name = |name: &str| -> Result<PathBuf> {
                 let socket_dir = if cfg!(windows) && name == KEEPASS_SOCKET_NAME_LEGACY {
-                    let cache_dir = base_dirs.cache_dir();
+                    let temp_dir = std::env::temp_dir();
+                    let temp_dir = std::fs::canonicalize(&temp_dir)?;
                     PathBuf::from(format!(
-                        "\\\\.\\pipe\\\\{}\\Temp\\{}",
-                        cache_dir.to_string_lossy(),
+                        "\\\\.\\pipe\\\\{}\\{}",
+                        &temp_dir.to_string_lossy()[4..],
                         name
                     ))
                 } else if cfg!(windows) {
@@ -77,11 +80,20 @@ pub fn get_socket_path() -> Result<PathBuf> {
                 Ok(socket_dir)
             };
             let legacy_path = get_socket_path_with_name(KEEPASS_SOCKET_NAME_LEGACY);
-            if legacy_path.is_ok() && legacy_path.as_ref().unwrap().exists() {
-                legacy_path
-            } else {
-                get_socket_path_with_name(KEEPASS_SOCKET_NAME)
+            if let Ok(legacy_path) = legacy_path {
+                if legacy_path.exists() {
+                    return Ok(legacy_path);
+                }
+                #[cfg(windows)]
+                if PipeClient::connect_ms(&legacy_path, NAMED_PIPE_CONNECT_TIMEOUT_MS).is_ok() {
+                    return Ok(legacy_path);
+                }
+                info!(
+                    "Legacy socket path {} does not exist",
+                    legacy_path.to_string_lossy()
+                );
             }
+            get_socket_path_with_name(KEEPASS_SOCKET_NAME)
         })?
         .clone())
     });
@@ -138,9 +150,9 @@ fn get_stream() -> Result<Rc<RefCell<PipeClient>>> {
         Ok(s.get_or_try_init(|| -> Result<_> {
             let path = get_socket_path()?;
             Ok(Rc::new(RefCell::new(
-                PipeClient::connect(&path).with_context(|| {
-                    format!("Failed to connect to named pipe {}", path.to_string_lossy())
-                })?,
+                PipeClient::connect_ms(&path, NAMED_PIPE_CONNECT_TIMEOUT_MS).with_context(
+                    || format!("Failed to connect to named pipe {}", path.to_string_lossy()),
+                )?,
             )))
         })?
         .clone())
