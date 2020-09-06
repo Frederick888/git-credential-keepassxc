@@ -399,13 +399,13 @@ mod tests {
     }
 
     pub type ExchangeMessageContext =
-        __mock_MessengingUtils_MessengingUtilsTrait::__exchange_message::Context;
+        __mock_MockMessengingUtils_MessengingUtilsTrait::__exchange_message::Context;
     pub type SendMessageContext =
-        __mock_MessengingUtils_MessengingUtilsTrait::__send_message::Context;
+        __mock_MockMessengingUtils_MessengingUtilsTrait::__send_message::Context;
     pub type ReceiveMessageContext =
-        __mock_MessengingUtils_MessengingUtilsTrait::__receive_message::Context;
+        __mock_MockMessengingUtils_MessengingUtilsTrait::__receive_message::Context;
     pub type ReadToEndContext =
-        __mock_MessengingUtils_MessengingUtilsInternalTrait::__read_to_end::Context;
+        __mock_MockMessengingUtils_MessengingUtilsInternalTrait::__read_to_end::Context;
 
     pub fn mock_kpxc_initialise(host_secret_key: &SecretKey) -> ExchangeMessageContext {
         let host_public_key = host_secret_key.public_key();
