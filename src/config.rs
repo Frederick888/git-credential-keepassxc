@@ -194,14 +194,24 @@ impl Config {
     }
 
     pub fn get_callers(&self) -> Result<Vec<Caller>> {
-        let mut callers: Vec<_> = self.callers.clone();
-        for encrypted_caller in &self.encrypted_callers {
-            // must decrypt all encrypted callers
-            callers.push(serde_json::from_str(
-                &self.base64_decrypt(&encrypted_caller.data, &encrypted_caller.nonce)?,
-            )?);
+        if self.count_encrypted_callers() > 0 {
+            if self.callers.len() > 0 {
+                warn!(
+                    "{} unencrypted caller profile(s) ignored",
+                    self.callers.len()
+                );
+            }
+            let mut callers: Vec<_> = Vec::new();
+            for encrypted_caller in &self.encrypted_callers {
+                // must decrypt all encrypted callers
+                callers.push(serde_json::from_str(
+                    &self.base64_decrypt(&encrypted_caller.data, &encrypted_caller.nonce)?,
+                )?);
+            }
+            Ok(callers)
+        } else {
+            Ok(self.callers.clone())
         }
-        Ok(callers)
     }
 
     pub fn count_callers(&self) -> usize {
@@ -873,6 +883,42 @@ mod tests {
         {
             // still valid
             let _config = Config::read_from(&config_path).unwrap();
+        }
+
+        fs::remove_file(config_path).unwrap();
+    }
+
+    #[test]
+    fn test_02_ignore_plaintext_callers_when_there_are_encrypted_ones() {
+        let config_path = {
+            let mut temp = std::env::temp_dir();
+            temp.push(format!("{}.test_02.json", clap::crate_name!()));
+            assert!(
+                !temp.exists(),
+                "Test configuration file {} already exists",
+                temp.to_string_lossy()
+            );
+            temp
+        };
+        let caller = Caller {
+            path: "/mock/path".to_owned(),
+            uid: None,
+            gid: None,
+        };
+
+        {
+            let mut config = Config::new();
+            config.add_encryption("challenge-response").unwrap();
+            config.add_caller(caller.clone(), true).unwrap();
+            config.add_caller(caller.clone(), true).unwrap();
+            config.add_caller(caller.clone(), false).unwrap();
+            config.write_to(&config_path).unwrap();
+        }
+        {
+            let config = Config::read_from(&config_path).unwrap();
+            assert_eq!(config.count_callers(), 3);
+            assert_eq!(config.count_encrypted_callers(), 2);
+            assert_eq!(config.get_callers().unwrap().len(), 2);
         }
 
         fs::remove_file(config_path).unwrap();
