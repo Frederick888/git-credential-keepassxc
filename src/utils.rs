@@ -93,7 +93,24 @@ pub fn get_socket_path() -> Result<PathBuf> {
                     legacy_path.to_string_lossy()
                 );
             }
-            get_socket_path_with_name(KEEPASS_SOCKET_NAME)
+            let path = get_socket_path_with_name(KEEPASS_SOCKET_NAME)?;
+            #[cfg(windows)]
+            if PipeClient::connect_ms(&path, NAMED_PIPE_CONNECT_TIMEOUT_MS).is_ok() {
+                // KPXC 2.6.0 - 2.6.1 didn't have USERNAME in named pipe
+                return Ok(path);
+            } else {
+                info!(
+                    "Legacy socket path {} does not exist",
+                    path.to_string_lossy()
+                );
+            }
+            if cfg!(windows) {
+                Ok(path.with_file_name(
+                    KEEPASS_SOCKET_NAME.to_owned() + "_" + &std::env::var("USERNAME")?,
+                ))
+            } else {
+                Ok(path)
+            }
         })?
         .clone())
     });
