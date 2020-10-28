@@ -382,14 +382,39 @@ fn verify_caller(config: &Config) -> Result<Option<(usize, PathBuf)>> {
     let pproc = system
         .get_process(ppid)
         .ok_or_else(|| anyhow!("Failed to retrieve parent process information"))?;
-    let ppath = pproc.exe().to_string_lossy();
-    info!("Parent process path: {}", ppath);
+    let ppath = pproc.exe();
+    info!("Parent process path: {}", ppath.to_string_lossy());
+    let canonical_ppath = ppath.canonicalize();
+    if canonical_ppath
+        .as_ref()
+        .map(|p| p != ppath)
+        .unwrap_or_else(|_| false)
+    {
+        info!(
+            "Canonical parent process path: {}",
+            canonical_ppath.as_ref().unwrap().to_string_lossy()
+        );
+    }
     let callers = config.get_callers()?;
     #[cfg(unix)]
     let matching_callers: Vec<_> = callers
         .iter()
         .filter(|caller| {
-            caller.path == ppath
+            let canonical_caller = PathBuf::from(&caller.path).canonicalize();
+            if canonical_caller
+                .as_ref()
+                .map(|p| p.to_string_lossy() != caller.path)
+                .unwrap_or_else(|_| false)
+            {
+                info!(
+                    "Canonical caller path: {}",
+                    canonical_caller.as_ref().unwrap().to_string_lossy()
+                );
+            }
+            (caller.path == ppath.to_string_lossy()
+                || (canonical_ppath.is_ok()
+                    && canonical_caller.is_ok()
+                    && canonical_ppath.as_ref().unwrap() == &canonical_caller.unwrap()))
                 && caller.uid.map(|id| id == proc.uid).unwrap_or(true)
                 && caller.gid.map(|id| id == proc.gid).unwrap_or(true)
         })
@@ -397,7 +422,23 @@ fn verify_caller(config: &Config) -> Result<Option<(usize, PathBuf)>> {
     #[cfg(windows)]
     let matching_callers: Vec<_> = callers
         .iter()
-        .filter(|caller| caller.path == ppath)
+        .filter(|caller| {
+            let canonical_caller = PathBuf::from(&caller.path).canonicalize();
+            if canonical_caller
+                .as_ref()
+                .map(|p| p.to_string_lossy() != caller.path)
+                .unwrap_or_else(|_| false)
+            {
+                info!(
+                    "Canonical caller path: {}",
+                    canonical_caller.as_ref().unwrap().to_string_lossy()
+                );
+            }
+            caller.path == ppath.to_string_lossy()
+                || (canonical_ppath.is_ok()
+                    && canonical_caller.is_ok()
+                    && canonical_ppath.as_ref().unwrap() == &canonical_caller.unwrap())
+        })
         .collect();
     if matching_callers.is_empty() {
         Err(anyhow!("You are not allowed to use this program"))
