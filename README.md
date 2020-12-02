@@ -31,7 +31,8 @@ It is suggested to use [cargo-update](https://crates.io/crates/cargo-update) to 
 $ cargo install cargo-update
 # enable and persist features
 $ cargo install --features <FEATURE>... git-credential-keepassxc
-$ cargo install-update-config --feature <FEATURE>... git-credential-keepassxc
+# note the flipped order of package name and --feature flag
+$ cargo install-update-config git-credential-keepassxc --feature <FEATURE>...
 
 # later when you update
 $ cargo install-update git-credential-keepassxc
