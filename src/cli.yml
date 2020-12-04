@@ -71,6 +71,9 @@ subcommands:
                   long: gid
                   help: GID of the caller process (ignored under Windows)
                   takes_value: true
+              - canonicalize:
+                  long: canonicalize
+                  help: Additionally compare canonical caller paths during verification
               - encrypt:
                   long: encrypt
                   help: |-

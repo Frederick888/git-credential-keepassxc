@@ -339,6 +339,7 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
                 } else {
                     None
                 },
+                canonicalize: add_args.is_present("canonicalize"),
             };
             let encryption = subcommand
                 .subcommand_matches("add")
@@ -385,59 +386,43 @@ fn verify_caller(config: &Config) -> Result<Option<(usize, PathBuf)>> {
     let ppath = pproc.exe();
     info!("Parent process path: {}", ppath.to_string_lossy());
     let canonical_ppath = ppath.canonicalize();
-    if canonical_ppath
-        .as_ref()
-        .map(|p| p != ppath)
-        .unwrap_or_else(|_| false)
-    {
+    if canonical_ppath.is_ok() {
         info!(
             "Canonical parent process path: {}",
             canonical_ppath.as_ref().unwrap().to_string_lossy()
         );
+    } else {
+        warn!("Cannot determine canonical parent process path");
     }
     let callers = config.get_callers()?;
-    #[cfg(unix)]
     let matching_callers: Vec<_> = callers
         .iter()
         .filter(|caller| {
-            let canonical_caller = PathBuf::from(&caller.path).canonicalize();
-            if canonical_caller
-                .as_ref()
-                .map(|p| p.to_string_lossy() != caller.path)
-                .unwrap_or_else(|_| false)
+            #[cfg(unix)]
+            if caller.uid.map(|id| id != proc.uid).unwrap_or(false)
+                || caller.gid.map(|id| id != proc.gid).unwrap_or(false)
             {
-                info!(
-                    "Canonical caller path: {}",
-                    canonical_caller.as_ref().unwrap().to_string_lossy()
-                );
+                return false;
             }
-            (caller.path == ppath.to_string_lossy()
-                || (canonical_ppath.is_ok()
-                    && canonical_caller.is_ok()
-                    && canonical_ppath.as_ref().unwrap() == &canonical_caller.unwrap()))
-                && caller.uid.map(|id| id == proc.uid).unwrap_or(true)
-                && caller.gid.map(|id| id == proc.gid).unwrap_or(true)
-        })
-        .collect();
-    #[cfg(windows)]
-    let matching_callers: Vec<_> = callers
-        .iter()
-        .filter(|caller| {
-            let canonical_caller = PathBuf::from(&caller.path).canonicalize();
-            if canonical_caller
-                .as_ref()
-                .map(|p| p.to_string_lossy() != caller.path)
-                .unwrap_or_else(|_| false)
-            {
-                info!(
-                    "Canonical caller path: {}",
-                    canonical_caller.as_ref().unwrap().to_string_lossy()
-                );
+            if caller.canonicalize && canonical_ppath.is_ok() {
+                let canonical_caller = PathBuf::from(&caller.path).canonicalize();
+                if canonical_caller
+                    .as_ref()
+                    .map(|p| p.to_string_lossy() != caller.path)
+                    .unwrap_or_else(|_| false)
+                {
+                    info!(
+                        "Canonical caller path: {}",
+                        canonical_caller.as_ref().unwrap().to_string_lossy()
+                    );
+                }
+                if canonical_caller.is_ok()
+                    && canonical_ppath.as_ref().unwrap() == &canonical_caller.unwrap()
+                {
+                    return true;
+                }
             }
             caller.path == ppath.to_string_lossy()
-                || (canonical_ppath.is_ok()
-                    && canonical_caller.is_ok()
-                    && canonical_ppath.as_ref().unwrap() == &canonical_caller.unwrap())
         })
         .collect();
     if matching_callers.is_empty() {

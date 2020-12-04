@@ -553,13 +553,19 @@ impl Database {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+fn default_as_false() -> bool {
+    false
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Caller {
     pub path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uid: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gid: Option<u32>,
+    #[serde(default = "default_as_false")]
+    pub canonicalize: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -904,6 +910,7 @@ mod tests {
             path: "/mock/path".to_owned(),
             uid: None,
             gid: None,
+            ..Default::default()
         };
 
         {
