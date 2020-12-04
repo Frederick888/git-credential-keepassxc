@@ -6,7 +6,11 @@ on:
       - opened
       - reopened
       - synchronize
-  push: {}
+  push:
+    branches:
+      - "*"
+    tags-ignore:
+      - "*"
 
 env:
   CARGO_TERM_COLOR: always

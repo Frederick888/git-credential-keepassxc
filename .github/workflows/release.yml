@@ -1,0 +1,138 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create_release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+  build:
+    runs-on: ${{ matrix.os }}
+    needs: create_release
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Git Commit Hash
+        id: git_commit
+        run: |
+          echo "::set-output name=hash::$(git rev-parse HEAD)"
+
+      - name: Install Linux Dependencies
+        if: contains(matrix.os, 'ubuntu')
+        run: sudo apt-get install -y libusb-1.0-0 libusb-1.0-0-dev libdbus-1-dev
+      - name: Install macOS Dependencies
+        if: contains(matrix.os, 'macos')
+        run: brew install coreutils
+      - name: Install Windows Dependencies
+        if: contains(matrix.os, 'windows')
+        run: choco install zip
+
+      - name: Install Rust Toolchain
+        id: rust_toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+          override: true
+
+      - name: Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-git-${{ steps.git_commit.outputs.hash }}
+          restore-keys: |
+            build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-
+            build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-
+            build-${{ runner.os }}-
+
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --features=all
+
+      - name: "Build (No Features)"
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+      - name: "Pack (No Features)"
+        id: pack_minimal
+        run: |
+          zip -j "./${{ matrix.os }}-minimal.zip" target/release/git-credential-keepassxc target/release/git-credential-keepassxc.exe
+          echo "::set-output name=filename::${{ matrix.os }}-minimal"
+      - name: "Hash (No Features)"
+        id: hash_minimal_unix
+        if: "!contains(matrix.os, 'windows')"
+        run: echo "::set-output name=filehash::$(sha256sum ${{ steps.pack_minimal.outputs.filename }}.zip | cut -d ' ' -f 1)"
+      - name: "Hash (No Features)"
+        id: hash_minimal_windows
+        if: contains(matrix.os, 'windows')
+        run: |
+          $FileHash=(certutil -hashfile ${{ steps.pack_minimal.outputs.filename }}.zip SHA256 | findstr /v hash | findstr /v SHA).replace(" ", "")
+          echo "::set-output name=filehash::$FileHash"
+      - name: "Upload (No Features)"
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_path: ./${{ steps.pack_minimal.outputs.filename }}.zip
+          asset_name: ${{ steps.pack_minimal.outputs.filename }}-${{ steps.hash_minimal_unix.outputs.filehash }}${{ steps.hash_minimal_windows.outputs.filehash }}.zip
+          asset_content_type: application/zip
+
+      - name: "Build (All Features)"
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --features=all
+      - name: "Pack (All Features)"
+        id: pack_full
+        run: |
+          zip -j "./${{ matrix.os }}-full.zip" target/release/git-credential-keepassxc target/release/git-credential-keepassxc.exe
+          echo "::set-output name=filename::${{ matrix.os }}-full"
+      - name: "Hash (All Features)"
+        id: hash_full_unix
+        if: "!contains(matrix.os, 'windows')"
+        run: echo "::set-output name=filehash::$(sha256sum ${{ steps.pack_full.outputs.filename }}.zip | cut -d ' ' -f 1)"
+      - name: "Hash (All Features)"
+        id: hash_full_windows
+        if: contains(matrix.os, 'windows')
+        run: |
+          $FileHash=(certutil -hashfile ${{ steps.pack_full.outputs.filename }}.zip SHA256 | findstr /v hash | findstr /v SHA).replace(" ", "")
+          echo "::set-output name=filehash::$FileHash"
+      - name: "Upload (All Features)"
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_path: ./${{ steps.pack_full.outputs.filename }}.zip
+          asset_name: ${{ steps.pack_full.outputs.filename }}-${{ steps.hash_full_unix.outputs.filehash }}${{ steps.hash_full_windows.outputs.filehash }}.zip
+          asset_content_type: application/zip
