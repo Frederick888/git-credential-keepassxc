@@ -8,8 +8,6 @@ os:
 addons:
   apt:
     packages:
-      - libusb-dev
-      - libusb-0.1-4
       - libusb-1.0-0
       - libusb-1.0-0-dev
       - libdbus-1-dev
@@ -17,7 +15,6 @@ addons:
     update: true
     packages:
       - libusb
-      - libusb-compat
 
 rust:
   - stable
@@ -37,44 +34,11 @@ cache:
     - /C/Users/travis/.cache/sccache
     - target
 
-before_install:
-  - |-
-    case $TRAVIS_OS_NAME in
-      windows)
-        [[ ! -f C:/tools/msys64/msys2_shell.cmd ]] && rm -rf C:/tools/msys64
-        choco uninstall -y mingw
-        choco upgrade --no-progress -y msys2
-        export msys2='cmd //C RefreshEnv.cmd '
-        export msys2+='& set MSYS=winsymlinks:nativestrict '
-        export msys2+='& C:\\tools\\msys64\\msys2_shell.cmd -defterm -no-start'
-        export mingw64="$msys2 -mingw64 -full-path -here -c "\"\$@"\" --"
-        export msys2+=" -msys2 -c "\"\$@"\" --"
-        $msys2 pacman --sync --noconfirm --needed mingw-w64-x86_64-toolchain
-        ## Install more MSYS2 packages from https://packages.msys2.org/base here
-        $msys2 pacman --sync --noconfirm --needed mingw-w64-x86_64-pkg-config mingw-w64-x86_64-libusb
-        taskkill //IM gpg-agent.exe //F  # https://travis-ci.community/t/4967
-        export PATH=/C/tools/msys64/mingw64/bin:$PATH
-        export MAKE=mingw32-make  # so that Autotools can find it
-        export PKG_CONFIG_ALLOW_CROSS=1
-        rustup component add rust-std-x86_64-pc-windows-gnu
-        ;;
-    esac
-
-before_cache:
-  - |-
-    case $TRAVIS_OS_NAME in
-      windows)
-        # https://unix.stackexchange.com/a/137322/107554
-        $msys2 pacman --sync --clean --noconfirm
-        ;;
-    esac
-
 script:
-  - "[[ $TRAVIS_OS_NAME == \"windows\" ]] && FLAGS=\"--target=x86_64-pc-windows-gnu\" || FLAGS=\"\""
-  - cargo build --verbose --release $FLAGS
-  - cargo build --verbose --release --features=notification $FLAGS
-  - cargo build --verbose --release --features=encryption $FLAGS
-  - cargo build --verbose --release --features=yubikey $FLAGS
-  - cargo build --verbose --release --features=all $FLAGS
-  - cargo test --features=all $FLAGS
-  - cat ./.travis-merge.sh | env FLAGS="$FLAGS" bash
+  - cargo build --verbose --release
+  - cargo build --verbose --release --features=notification
+  - cargo build --verbose --release --features=encryption
+  - cargo build --verbose --release --features=yubikey
+  - cargo build --verbose --release --features=all
+  - cargo test --features=all
+  - cat ./.travis-merge.sh | env FLAGS="" bash

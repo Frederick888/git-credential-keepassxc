@@ -1,0 +1,117 @@
+name: Build and Test
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+  push:
+    branches:
+      - "*"
+    tags-ignore:
+      - "*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        rust_toolchain: [stable]
+        experimental: [false]
+        include:
+          - os: ubuntu-latest
+            rust_toolchain: nightly
+            experimental: true
+          - os: macos-latest
+            rust_toolchain: nightly
+            experimental: true
+          - os: windows-latest
+            rust_toolchain: nightly
+            experimental: true
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Git Commit Hash
+        id: git_commit
+        run: |
+          echo "::set-output name=hash::$(git rev-parse HEAD)"
+
+      - name: Install Linux Dependencies
+        if: contains(matrix.os, 'ubuntu')
+        run: sudo apt-get install -y libusb-1.0-0 libusb-1.0-0-dev libdbus-1-dev
+
+      - name: Install Rust Toolchain
+        id: rust_toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust_toolchain }}
+          default: true
+          override: true
+
+      - name: Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-git-${{ steps.git_commit.outputs.hash }}
+          restore-keys: |
+            build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-
+            build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-
+            build-${{ runner.os }}-
+
+      - name: "Build (No Features)"
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+      - name: "Artifacts (No Features)"
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.os }}-${{ matrix.rust_toolchain }}-minimal
+          retention-days: 60
+          path: |
+            target/release/git-credential-keepassxc
+            target/release/git-credential-keepassxc.exe
+      - name: "Build (notification)"
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --features=notification
+      - name: "Build (encryption)"
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --features=encryption
+      - name: "Build (yubikey)"
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --features=yubikey
+      - name: "Build (all)"
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --features=all
+      - name: "Artifacts (All Features)"
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.os }}-${{ matrix.rust_toolchain }}-full
+          retention-days: 60
+          path: |
+            target/release/git-credential-keepassxc
+            target/release/git-credential-keepassxc.exe
+
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --features=all
