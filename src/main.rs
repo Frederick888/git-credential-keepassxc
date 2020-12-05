@@ -788,3 +788,47 @@ fn main() {
         std::process::exit(1);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(feature = "strict-caller")]
+    fn test_00_verification_success_when_strict_caller_but_no_database() {
+        let config = Config::new();
+        assert!(verify_caller(&config).is_ok());
+    }
+
+    #[test]
+    #[cfg(feature = "strict-caller")]
+    fn test_01_verification_failure_when_strict_caller_and_database() {
+        let mut config = Config::new();
+        let database = Database {
+            id: "test_01".to_string(),
+            key: "".to_string(),
+            pkey: "".to_string(),
+            group: "".to_string(),
+            group_uuid: "".to_string(),
+        };
+        config.add_database(database, false).unwrap();
+
+        assert!(verify_caller(&config).is_err());
+    }
+
+    #[test]
+    #[cfg(not(feature = "strict-caller"))]
+    fn test_02_verification_success_when_database_but_no_strict_caller() {
+        let mut config = Config::new();
+        let database = Database {
+            id: "test_02".to_string(),
+            key: "".to_string(),
+            pkey: "".to_string(),
+            group: "".to_string(),
+            group_uuid: "".to_string(),
+        };
+        config.add_database(database, false).unwrap();
+
+        assert!(verify_caller(&config).is_ok());
+    }
+}
