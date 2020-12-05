@@ -110,7 +110,12 @@ jobs:
             target/release/git-credential-keepassxc
             target/release/git-credential-keepassxc.exe
 
-      - name: Test
+      - name: "Test (No strict-caller)"
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --features=notification,encryption,yubikey
+      - name: "Test (All Features)"
         uses: actions-rs/cargo@v1
         with:
           command: test

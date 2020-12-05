@@ -40,5 +40,6 @@ script:
   - cargo build --verbose --release --features=encryption
   - cargo build --verbose --release --features=yubikey
   - cargo build --verbose --release --features=all
+  - cargo test --features=notification,encryption,yubikey
   - cargo test --features=all
   - cat ./.travis-merge.sh | env FLAGS="" bash

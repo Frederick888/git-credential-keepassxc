@@ -178,6 +178,23 @@ fn handle_secondary_encryption(config_file: &mut Config) -> Result<()> {
 }
 
 fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
+    // read existing or create new config
+    let mut config_file = if let Ok(config_file) = Config::read_from(&config_path) {
+        verify_caller(&config_file)?;
+        config_file
+    } else {
+        Config::new()
+    };
+
+    if config_file.count_callers() == 0 && cfg!(feature = "strict-caller") {
+        warn!("Configuring database when strict-caller feature is enabled and no caller profiles are defined");
+        println!("You are about to configure a new database before configuring any callers while strict-caller feature is enabled.");
+        println!("You won't be able to use this program unless you plan to add caller profiles manually!");
+        print!("Press Enter to continue... ");
+        std::io::stdout().flush()?;
+        std::io::stdin().read_line(&mut String::new())?;
+    }
+
     // start session
     let (client_id, session_seckey, _) = start_session()?;
     let session_pubkey = session_seckey.public_key();
@@ -198,14 +215,6 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     let cng_req = CreateNewGroupRequest::new(group_name);
     let cng_resp = cng_req.send(&client_id, false)?;
     let group = Group::new(cng_resp.name, cng_resp.uuid);
-
-    // read existing or create new config
-    let mut config_file = if let Ok(config_file) = Config::read_from(&config_path) {
-        verify_caller(&config_file)?;
-        config_file
-    } else {
-        Config::new()
-    };
 
     let encryption = args
         .subcommand_matches("configure")
@@ -426,6 +435,9 @@ fn verify_caller(config: &Config) -> Result<Option<(usize, PathBuf)>> {
         })
         .collect();
     if matching_callers.is_empty() {
+        if config.count_callers() == 0 && cfg!(feature = "strict-caller") {
+            warn!("No caller profiles defined. You must configure callers before databases when strict-caller feature is enabled");
+        }
         Err(anyhow!("You are not allowed to use this program"))
     } else {
         Ok(Some((ppid as usize, pproc.exe().to_owned())))
@@ -774,5 +786,49 @@ fn main() {
             .unwrap_or_else(|| "N/A".to_string());
         error!("{}, Caused by: {}", e, source);
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(feature = "strict-caller")]
+    fn test_00_verification_success_when_strict_caller_but_no_database() {
+        let config = Config::new();
+        assert!(verify_caller(&config).is_ok());
+    }
+
+    #[test]
+    #[cfg(feature = "strict-caller")]
+    fn test_01_verification_failure_when_strict_caller_and_database() {
+        let mut config = Config::new();
+        let database = Database {
+            id: "test_01".to_string(),
+            key: "".to_string(),
+            pkey: "".to_string(),
+            group: "".to_string(),
+            group_uuid: "".to_string(),
+        };
+        config.add_database(database, false).unwrap();
+
+        assert!(verify_caller(&config).is_err());
+    }
+
+    #[test]
+    #[cfg(not(feature = "strict-caller"))]
+    fn test_02_verification_success_when_database_but_no_strict_caller() {
+        let mut config = Config::new();
+        let database = Database {
+            id: "test_02".to_string(),
+            key: "".to_string(),
+            pkey: "".to_string(),
+            group: "".to_string(),
+            group_uuid: "".to_string(),
+        };
+        config.add_database(database, false).unwrap();
+
+        assert!(verify_caller(&config).is_ok());
     }
 }

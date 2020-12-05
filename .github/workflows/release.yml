@@ -71,7 +71,12 @@ jobs:
             build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-
             build-${{ runner.os }}-
 
-      - name: Test
+      - name: "Test (No strict-caller)"
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --features=notification,encryption,yubikey
+      - name: "Test (All Features)"
         uses: actions-rs/cargo@v1
         with:
           command: test
