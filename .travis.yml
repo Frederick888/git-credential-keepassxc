@@ -8,8 +8,6 @@ os:
 addons:
   apt:
     packages:
-      - libusb-dev
-      - libusb-0.1-4
       - libusb-1.0-0
       - libusb-1.0-0-dev
       - libdbus-1-dev
@@ -17,7 +15,6 @@ addons:
     update: true
     packages:
       - libusb
-      - libusb-compat
 
 rust:
   - stable
