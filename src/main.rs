@@ -178,6 +178,14 @@ fn handle_secondary_encryption(config_file: &mut Config) -> Result<()> {
 }
 
 fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
+    // read existing or create new config
+    let mut config_file = if let Ok(config_file) = Config::read_from(&config_path) {
+        verify_caller(&config_file)?;
+        config_file
+    } else {
+        Config::new()
+    };
+
     // start session
     let (client_id, session_seckey, _) = start_session()?;
     let session_pubkey = session_seckey.public_key();
@@ -198,14 +206,6 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     let cng_req = CreateNewGroupRequest::new(group_name);
     let cng_resp = cng_req.send(&client_id, false)?;
     let group = Group::new(cng_resp.name, cng_resp.uuid);
-
-    // read existing or create new config
-    let mut config_file = if let Ok(config_file) = Config::read_from(&config_path) {
-        verify_caller(&config_file)?;
-        config_file
-    } else {
-        Config::new()
-    };
 
     let encryption = args
         .subcommand_matches("configure")
