@@ -15,6 +15,12 @@ It communicates with KeePassXC using [keepassxc-protocol](https://github.com/kee
 
 *Note:* Make sure `$CARGO_INSTALL_ROOT` is in your search path.
 
+### Pre-Built Binaries (Experimental)
+
+Pre-built binaries are now available at the [GitHub release page](https://github.com/Frederick888/git-credential-keepassxc/releases).
+
+The `*-minimal` ones are built with no features enabled, and `*-full` ones are built with all.
+
 ### Optional features
 
 `git-credential-keepassxc` currently has got the following features that you can choose to opt in:
