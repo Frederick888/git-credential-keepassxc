@@ -426,6 +426,9 @@ fn verify_caller(config: &Config) -> Result<Option<(usize, PathBuf)>> {
         })
         .collect();
     if matching_callers.is_empty() {
+        if config.count_callers() == 0 && cfg!(feature = "strict-caller") {
+            warn!("No caller profiles defined. You must configure callers before databases when strict-caller feature is enabled");
+        }
         Err(anyhow!("You are not allowed to use this program"))
     } else {
         Ok(Some((ppid as usize, pproc.exe().to_owned())))
