@@ -13,8 +13,10 @@ use git::GitCredentialMessage;
 use keepassxc::{errors::*, messages::*, Group};
 use once_cell::sync::OnceCell;
 use slog::{Drain, Level, Logger};
+use std::env;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
@@ -697,6 +699,48 @@ fn erase_login() -> Result<()> {
     Ok(())
 }
 
+fn edit<T: AsRef<Path>>(config_path: T) -> Result<()> {
+    const KNOWN_EDITORS: &'static [&'static str] = &["nvim", "vim", "kak", "vi", "nano", "ex"];
+    let find_editor = || -> Option<String> {
+        if let Ok(editor) = env::var("VISUAL") {
+            debug!("Found editor {} via VISUAL environment variable", editor);
+            return Some(editor);
+        } else if let Ok(editor) = env::var("EDITOR") {
+            debug!("Found editor {} via EDITOR environment variable", editor);
+            return Some(editor);
+        } else {
+            for editor in KNOWN_EDITORS {
+                if which::which(editor).is_ok() {
+                    debug!("Found known editor {}", editor);
+                    return Some(editor.to_string());
+                }
+            }
+        }
+        None
+    };
+
+    if let Some(editor) = find_editor() {
+        println!(
+            "Opening {} using {}",
+            config_path.as_ref().to_string_lossy(),
+            editor
+        );
+        let mut editor_process = Command::new(editor)
+            .arg(config_path.as_ref())
+            .spawn()
+            .map_err(|e| anyhow!("Failed to open editor: {}", e))?;
+        println!("Waiting user to finish...");
+        editor_process.wait()?;
+    } else {
+        println!(
+            "Failed to find an editor automatically. Go ahead and open {} in your favourite editor :)",
+            config_path.as_ref().to_string_lossy()
+        );
+    }
+
+    Ok(())
+}
+
 fn real_main() -> Result<()> {
     #[cfg(all(target_os = "linux", not(debug_assertions)))]
     {
@@ -768,6 +812,7 @@ fn real_main() -> Result<()> {
     debug!("Subcommand: {}", subcommand);
     match subcommand {
         "configure" => configure(config_path, &args),
+        "edit" => edit(config_path),
         "encrypt" => encrypt(config_path, &args),
         "decrypt" => decrypt(config_path),
         "caller" => caller(config_path, &args),

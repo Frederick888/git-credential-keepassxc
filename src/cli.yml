@@ -43,6 +43,8 @@ subcommands:
               Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
               Leave empty ("") to use existing encryption profile in configuration file.
             takes_value: true
+  - edit:
+      about: Open configuration file in editor
   - encrypt:
       about: Encrypt existing database and caller profile(s)
       args:
