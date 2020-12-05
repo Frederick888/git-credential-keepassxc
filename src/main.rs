@@ -186,6 +186,15 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         Config::new()
     };
 
+    if config_file.count_callers() == 0 && cfg!(feature = "strict-caller") {
+        warn!("Configuring database when strict-caller feature is enabled and no caller profiles are defined");
+        println!("You are about to configure a new database before configuring any callers while strict-caller feature is enabled.");
+        println!("You won't be able to use this program unless you plan to add caller profiles manually!");
+        print!("Press Enter to continue... ");
+        std::io::stdout().flush()?;
+        std::io::stdin().read_line(&mut String::new())?;
+    }
+
     // start session
     let (client_id, session_seckey, _) = start_session()?;
     let session_pubkey = session_seckey.public_key();
