@@ -24,7 +24,7 @@ It communicates with KeePassXC using [keepassxc-protocol](https://github.com/kee
 | `all` | Enable all features |
 | `notification` | Desktop notifications, helpful if `git-credential-keepassxc` is used in scripts |
 | `yubikey` | Allow encrypting configuration file using YubiKey HMAC-SHA1 |
-| `strict-caller` | Enforce caller limiting when there are associated databases |
+| `strict-caller` | Enforce caller limiting when there are associated databases (read the [Limiting callers](#limiting-callers) section for details) |
 
 It is suggested to use [cargo-update](https://crates.io/crates/cargo-update) to make the features you've enabled persistent across updates.
 
@@ -42,7 +42,7 @@ $ cargo install-update git-credential-keepassxc
 
 ## Configuration
 
-Similar as the browser extensions, `git-credential-keepassxc` needs to be associated with KeePassXC first.
+Similar to the browser extensions, `git-credential-keepassxc` needs to be associated with KeePassXC first.
 
 Run:
 
@@ -53,7 +53,9 @@ $ git config --global credential.helper keepassxc
 
 A group (by default `Git`) will be created to store new logins.
 
-## Limit callers
+For more options, run `git-credential-keepassxc -h` to show the help message.
+
+## Limiting callers
 
 `git-credential-keepassxc` allows you to limit callers (though you should probably have a look at some [MAC](https://en.wikipedia.org/wiki/Mandatory_access_control) systems to properly achieve this), for instance:
 
@@ -77,7 +79,7 @@ $ git-credential-keepassxc caller clear
 
 *Note:* If you've enabled `strict-caller`, you must add caller profiles before configuring databases, otherwise you won't be able to run `git-credential-keepassxc` afterwards.
 
-## Encrypt KeePassXC keys using YubiKey
+## Encrypting KeePassXC keys using YubiKey
 
 By default the keys for authentication are stored in plaintext, which means it's possible for malware to extract the keys and request credentials from KeePassXC directly. This can be particularly dangerous if you've allowed clients to retrieve any credentials without confirmation.
 
@@ -96,7 +98,7 @@ $ git-credential-keepassxc decrypt
 
 For more details, see: [wiki/Encryption](https://github.com/Frederick888/git-credential-keepassxc/wiki/Encryption)
 
-## Tip
+## Ignoring certain entries
 
 Although currently it's not possible to return entries only from the Git group, you may still want to hide specific ones from Git (for instance GitLab allows only access tokens to clone over HTTPS when 2FA is enabled, so your password may conflict with the token). This can be done by adding a magic attribute to those entries.
 
