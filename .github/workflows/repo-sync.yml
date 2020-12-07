@@ -1,0 +1,28 @@
+name: GitLab Sync
+
+on: push
+
+jobs:
+  branch-sync:
+    name: Synchronise Branches
+    runs-on: ubuntu-latest
+    steps:
+    - name: repo-sync
+      uses: wei/git-sync@v2
+      with:
+        source_repo: "https://github.com/Frederick888/git-credential-keepassxc.git"
+        source_branch: "refs/remotes/source/*"
+        destination_repo: "https://Frederick888:${{ secrets.GITLAB_ACCESS_TOKEN }}@git.tsundere.moe/Frederick888/git-credential-keepassxc.git"
+        destination_branch: "refs/heads/*"
+
+  tag-sync:
+    name: Synchronise Tags
+    runs-on: ubuntu-latest
+    steps:
+    - name: repo-sync
+      uses: wei/git-sync@v2
+      with:
+        source_repo: "https://github.com/Frederick888/git-credential-keepassxc.git"
+        source_branch: "refs/tags/*"
+        destination_repo: "https://Frederick888:${{ secrets.GITLAB_ACCESS_TOKEN }}@git.tsundere.moe/Frederick888/git-credential-keepassxc.git"
+        destination_branch: "refs/tags/*"
