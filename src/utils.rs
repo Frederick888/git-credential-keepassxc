@@ -176,31 +176,31 @@ fn get_stream() -> Result<Rc<RefCell<PipeClient>>> {
     })?)
 }
 
-pub trait MessengingUtilsTrait {
+pub trait MessagingUtilsTrait {
     fn exchange_message(request: String) -> Result<String>;
     fn send_message(request: String) -> Result<()>;
     fn receive_message() -> Result<String>;
 }
 
-trait MessengingUtilsInternalTrait {
+trait MessagingUtilsInternalTrait {
     fn read_to_end() -> Result<String>;
 }
 
-pub struct MessengingUtils {}
+pub struct MessagingUtils {}
 #[cfg(test)]
 mock! {
-    pub MessengingUtils {}
-    pub trait MessengingUtilsTrait {
+    pub MessagingUtils {}
+    pub trait MessagingUtilsTrait {
         fn exchange_message(request: String) -> Result<String>;
         fn send_message(request: String) -> Result<()>;
         fn receive_message() -> Result<String>;
     }
-    pub trait MessengingUtilsInternalTrait {
+    pub trait MessagingUtilsInternalTrait {
         fn read_to_end() -> Result<String>;
     }
 }
 
-impl MessengingUtilsTrait for MessengingUtils {
+impl MessagingUtilsTrait for MessagingUtils {
     fn exchange_message(request: String) -> Result<String> {
         Self::send_message(request)?;
         Self::receive_message()
@@ -219,7 +219,7 @@ impl MessengingUtilsTrait for MessengingUtils {
             #[cfg(not(test))]
             let response = Self::read_to_end()?;
             #[cfg(test)]
-            let response = MockMessengingUtils::read_to_end()?;
+            let response = MockMessagingUtils::read_to_end()?;
             let jsons = cut_jsons(&response);
             if jsons.len() == 1 {
                 break Ok(response);
@@ -232,7 +232,7 @@ impl MessengingUtilsTrait for MessengingUtils {
     }
 }
 
-impl MessengingUtilsInternalTrait for MessengingUtils {
+impl MessagingUtilsInternalTrait for MessagingUtils {
     fn read_to_end() -> Result<String> {
         let stream_rc = get_stream()?;
         let mut stream = stream_rc.borrow_mut();
@@ -416,17 +416,17 @@ mod tests {
     }
 
     pub type ExchangeMessageContext =
-        __mock_MockMessengingUtils_MessengingUtilsTrait::__exchange_message::Context;
+        __mock_MockMessagingUtils_MessagingUtilsTrait::__exchange_message::Context;
     pub type SendMessageContext =
-        __mock_MockMessengingUtils_MessengingUtilsTrait::__send_message::Context;
+        __mock_MockMessagingUtils_MessagingUtilsTrait::__send_message::Context;
     pub type ReceiveMessageContext =
-        __mock_MockMessengingUtils_MessengingUtilsTrait::__receive_message::Context;
+        __mock_MockMessagingUtils_MessagingUtilsTrait::__receive_message::Context;
     pub type ReadToEndContext =
-        __mock_MockMessengingUtils_MessengingUtilsInternalTrait::__read_to_end::Context;
+        __mock_MockMessagingUtils_MessagingUtilsInternalTrait::__read_to_end::Context;
 
     pub fn mock_kpxc_initialise(host_secret_key: &SecretKey) -> ExchangeMessageContext {
         let host_public_key = host_secret_key.public_key();
-        let exchange_message_context = MockMessengingUtils::exchange_message_context();
+        let exchange_message_context = MockMessagingUtils::exchange_message_context();
         exchange_message_context
             .expect()
             .times(1)
@@ -450,10 +450,10 @@ mod tests {
     ) -> (SendMessageContext, ReceiveMessageContext) {
         let host_public_key = host_secret_key.public_key();
 
-        let send_message_context = MockMessengingUtils::send_message_context();
+        let send_message_context = MockMessagingUtils::send_message_context();
         send_message_context.expect().returning(|_| Ok(()));
 
-        let receive_message_context = MockMessengingUtils::receive_message_context();
+        let receive_message_context = MockMessagingUtils::receive_message_context();
         receive_message_context
             .expect()
             .times(1)
@@ -500,7 +500,7 @@ mod tests {
     }
 
     pub fn mock_kpxc_with_jsons(jsons: Vec<&str>) -> ReadToEndContext {
-        let read_to_end_ctx = MockMessengingUtils::read_to_end_context();
+        let read_to_end_ctx = MockMessagingUtils::read_to_end_context();
         for json in jsons {
             let json = json.to_string();
             read_to_end_ctx
@@ -559,7 +559,7 @@ mod tests {
         ];
 
         let read_to_end_ctx = mock_kpxc_with_jsons(jsons.iter().map(String::as_str).collect());
-        let response = MessengingUtils::receive_message();
+        let response = MessagingUtils::receive_message();
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(&response, jsons.last().unwrap());

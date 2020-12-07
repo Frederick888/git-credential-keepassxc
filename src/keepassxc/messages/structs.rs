@@ -17,9 +17,9 @@ where
         info!("Sending {} request", self.get_action().to_string());
         let request_json = serde_json::to_string(self)?;
         #[cfg(not(test))]
-        let response_json = MessengingUtils::exchange_message(request_json)?;
+        let response_json = MessagingUtils::exchange_message(request_json)?;
         #[cfg(test)]
-        let response_json = MockMessengingUtils::exchange_message(request_json)?;
+        let response_json = MockMessagingUtils::exchange_message(request_json)?;
         let response: R = serde_json::from_str(&response_json)?;
         Ok(response)
     }
@@ -49,14 +49,14 @@ where
             trigger_unlock,
         };
         #[cfg(not(test))]
-        MessengingUtils::send_message(serde_json::to_string(&request_wrapper)?)?;
+        MessagingUtils::send_message(serde_json::to_string(&request_wrapper)?)?;
         #[cfg(test)]
-        MockMessengingUtils::send_message(serde_json::to_string(&request_wrapper)?)?;
+        MockMessagingUtils::send_message(serde_json::to_string(&request_wrapper)?)?;
         let response_wrapper = loop {
             #[cfg(not(test))]
-            let response_wrapper_json = MessengingUtils::receive_message()?;
+            let response_wrapper_json = MessagingUtils::receive_message()?;
             #[cfg(test)]
-            let response_wrapper_json = MockMessengingUtils::receive_message()?;
+            let response_wrapper_json = MockMessagingUtils::receive_message()?;
             let response_wrapper: GenericResponseWrapper =
                 serde_json::from_str(&response_wrapper_json)?;
             if response_wrapper.action == self.get_action() {
@@ -584,7 +584,7 @@ mod tests {
         // exchange keys
         let (send_message_context, receive_message_context) =
             mock_kpxc_initialise_send_receive(&host_seckey);
-        let exchange_message_context = MockMessengingUtils::exchange_message_context();
+        let exchange_message_context = MockMessagingUtils::exchange_message_context();
         let change_public_key_request = ChangePublicKeysRequest::new(&client_id, &host_pubkey);
         {
             let change_public_key_request = change_public_key_request.clone();
@@ -592,11 +592,11 @@ mod tests {
                 .expect()
                 .times(1)
                 .return_once(move |_| {
-                    MockMessengingUtils::send_message(
+                    MockMessagingUtils::send_message(
                         serde_json::to_string(&change_public_key_request).unwrap(),
                     )
                     .unwrap();
-                    MockMessengingUtils::receive_message()
+                    MockMessagingUtils::receive_message()
                 });
         }
         let change_public_key_response = change_public_key_request.send();
