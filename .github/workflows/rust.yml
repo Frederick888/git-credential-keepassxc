@@ -43,6 +43,12 @@ jobs:
         run: |
           echo "::set-output name=hash::$(git rev-parse HEAD)"
 
+      - name: Cancel Previous Runs
+        if: contains(matrix.os, 'ubuntu')
+        uses: styfle/cancel-workflow-action@0.6.0
+        with:
+          access_token: ${{ github.token }}
+
       - name: Install Linux Dependencies
         if: contains(matrix.os, 'ubuntu')
         run: sudo apt-get install -y libusb-1.0-0 libusb-1.0-0-dev libdbus-1-dev
