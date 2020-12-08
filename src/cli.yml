@@ -23,7 +23,13 @@ args:
       help: "Sets the level of verbosity (-v: WARNING; -vv: INFO; -vvv: DEBUG in debug builds)"
 subcommands:
   - get:
-      about: Get credential (used by Git)
+      about: "Get credential (used by Git)"
+      args:
+        - totp:
+            long: totp
+            help: Try getting TOTP
+  - totp:
+      about: Get TOTP
   - store:
       about: Store credential (used by Git)
   - erase:

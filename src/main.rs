@@ -6,7 +6,7 @@ mod utils;
 
 use anyhow::{anyhow, Result};
 use clap::{App, ArgMatches};
-use cli::UnlockOptions;
+use cli::{GetMode, UnlockOptions};
 use config::{Caller, Config, Database};
 use crypto_box::{PublicKey, SecretKey};
 use git::GitCredentialMessage;
@@ -472,6 +472,17 @@ fn get_logins_for<T: AsRef<str>>(
     Ok(login_entries)
 }
 
+fn get_totp_for<T: AsRef<str>>(client_id: T, uuid: T) -> Result<String> {
+    let gt_req = GetTotpRequest::new(uuid.as_ref());
+    let gt_resp = gt_req.send(client_id.as_ref(), false)?;
+    if gt_resp.success.is_some() && gt_resp.success.as_ref().unwrap().0 && !gt_resp.totp.is_empty()
+    {
+        Ok(gt_resp.totp)
+    } else {
+        Err(anyhow!("Failed to get TOTP"))
+    }
+}
+
 fn filter_kph_logins(login_entries: &[LoginEntry]) -> (u32, Vec<&LoginEntry>) {
     let mut kph_false = 0u32;
     let login_entries: Vec<&LoginEntry> = login_entries
@@ -500,6 +511,7 @@ fn filter_kph_logins(login_entries: &[LoginEntry]) -> (u32, Vec<&LoginEntry>) {
 fn get_logins<T: AsRef<Path>>(
     config_path: T,
     unlock_options: &Option<UnlockOptions>,
+    get_mode: &Option<GetMode>,
 ) -> Result<()> {
     let config = Config::read_from(config_path.as_ref())?;
     let _verify_caller = verify_caller(&config)?;
@@ -559,8 +571,29 @@ fn get_logins<T: AsRef<Path>>(
 
     let login = login_entries.first().unwrap();
     let mut git_resp = git_req;
-    git_resp.username = Some(login.login.clone());
-    git_resp.password = Some(login.password.clone());
+
+    // entry found handle TOTP now
+    match get_mode {
+        Some(mode) => match mode {
+            GetMode::PasswordAndTotp => {
+                if let Ok(totp) = get_totp_for(client_id, login.uuid.clone()) {
+                    git_resp.totp = Some(totp);
+                } else {
+                    error!("Failed to get TOTP");
+                }
+            }
+            GetMode::TotpOnly => {
+                git_resp.totp = Some(get_totp_for(client_id, login.uuid.clone())?);
+            }
+            _ => {}
+        },
+        _ => {}
+    }
+
+    if get_mode.is_none() || get_mode.as_ref().unwrap() != &GetMode::TotpOnly {
+        git_resp.username = Some(login.login.clone());
+        git_resp.password = Some(login.password.clone());
+    }
 
     io::stdout().write_all(git_resp.to_string().as_bytes())?;
 
@@ -810,13 +843,24 @@ fn real_main() -> Result<()> {
         .subcommand_name()
         .ok_or_else(|| anyhow!("No subcommand selected"))?;
     debug!("Subcommand: {}", subcommand);
+    let get_mode = match subcommand {
+        "get" => args.subcommand_matches("get").map(|m| {
+            if m.is_present("totp") {
+                GetMode::PasswordAndTotp
+            } else {
+                GetMode::PasswordOnly
+            }
+        }),
+        "totp" => Some(GetMode::TotpOnly),
+        _ => None,
+    };
     match subcommand {
         "configure" => configure(config_path, &args),
         "edit" => edit(config_path),
         "encrypt" => encrypt(config_path, &args),
         "decrypt" => decrypt(config_path),
         "caller" => caller(config_path, &args),
-        "get" => get_logins(config_path, &unlock_options),
+        "get" | "totp" => get_logins(config_path, &unlock_options, &get_mode),
         "store" => store_login(config_path, &unlock_options),
         "erase" => erase_login(),
         _ => Err(anyhow!(anyhow!("Unrecognised subcommand"))),
