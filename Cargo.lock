@@ -1546,8 +1546,9 @@ checksum = "e66366e18dc58b46801afbf2ca7661a9f59cc8c5962c29892b6039b4f86fa992"
 
 [[package]]
 name = "yubico_manager"
-version = "0.7.0"
-source = "git+https://github.com/Frederick888/yubico-manager.git?branch=rusb-win#315a5954a0526ad55cd6b2824f7d14491fdee904"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0cd973d55d48ce0ab773a8d14b6e1bf03825be140f6b6223781d1b2b38dc581c"
 dependencies = [
  "aes-soft 0.4.0",
  "bitflags 1.2.1",
