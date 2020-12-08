@@ -93,4 +93,5 @@ define_action!([
     (DatabaseLocked, "database-locked"),
     (DatabaseUnlocked, "database-unlocked"),
     (CreateNewGroup, "create-new-group"),
+    (GetTotp, "get-totp"),
 ]);

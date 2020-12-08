@@ -85,6 +85,7 @@ message_from_to_string!(
         pub username: Option<String>,
         pub password: Option<String>,
         pub url: Option<String>,
+        pub totp: Option<String>,
     }
 );
 
