@@ -110,6 +110,7 @@ impl_cipher_text!([
     (SetLoginRequest, SetLoginResponse),
     // (GetDatabaseGroupsRequest, GetDatabaseGroupsResponse),
     (CreateNewGroupRequest, CreateNewGroupResponse),
+    (GetTotpRequest, GetTotpResponse),
 ]);
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -533,6 +534,35 @@ pub struct CreateNewGroupResponse {
     pub error: Option<String>,
     #[serde(rename = "errorCode")]
     pub error_code: Option<String>,
+}
+
+/*
+ * get-totp
+ * https://github.com/keepassxreboot/keepassxc-browser/blob/develop/keepassxc-protocol.md#get-totp-keepassxc-261-and-newer
+ */
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetTotpRequest {
+    action: KeePassAction,
+    uuid: String,
+}
+
+impl GetTotpRequest {
+    pub fn new<T: Into<String>>(uuid: T) -> Self {
+        Self {
+            action: KeePassAction::GetTotp,
+            uuid: uuid.into(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetTotpResponse {
+    pub totp: String,
+    /* generic fields */
+    pub version: Option<String>,
+    pub nonce: Option<String>,
+    pub success: Option<KeePassBoolean>,
 }
 
 // no specs, need to dig into codes
