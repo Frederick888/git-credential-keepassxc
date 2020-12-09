@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_id: ${{ steps.create_release.outputs.id }}
     steps:
       - name: Create Release
         id: create_release
@@ -22,7 +23,7 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           release_name: Release ${{ github.ref }}
-          draft: false
+          draft: true
           prerelease: false
 
   build:
@@ -141,3 +142,14 @@ jobs:
           asset_path: ./${{ steps.pack_full.outputs.filename }}.zip
           asset_name: ${{ steps.pack_full.outputs.filename }}-${{ steps.hash_full_unix.outputs.filehash }}${{ steps.hash_full_windows.outputs.filehash }}.zip
           asset_content_type: application/zip
+
+  publish_release:
+    runs-on: ubuntu-latest
+    needs: [create_release, build]
+    steps:
+      - name: Publish Release
+        uses: eregon/publish-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          release_id: ${{ needs.create_release.outputs.release_id }}
