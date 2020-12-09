@@ -31,6 +31,10 @@ build-win:
 
 coverage:
     env CARGO_INCREMENTAL=0 RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort" \
+        RUSTDOCFLAGS="-Cpanic=abort" cargo +nightly build --features=encryption,yubikey,notification
+    env CARGO_INCREMENTAL=0 RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort" \
+        RUSTDOCFLAGS="-Cpanic=abort" cargo +nightly test --features=encryption,yubikey,notification
+    env CARGO_INCREMENTAL=0 RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort" \
         RUSTDOCFLAGS="-Cpanic=abort" cargo +nightly build --features=all
     env CARGO_INCREMENTAL=0 RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort" \
         RUSTDOCFLAGS="-Cpanic=abort" cargo +nightly test --features=all
