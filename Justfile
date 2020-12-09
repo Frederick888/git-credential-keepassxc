@@ -31,9 +31,9 @@ build-win:
 
 coverage:
     env CARGO_INCREMENTAL=0 RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort" \
-        RUSTDOCFLAGS="-Cpanic=abort" cargo build --features=all
+        RUSTDOCFLAGS="-Cpanic=abort" cargo +nightly build --features=all
     env CARGO_INCREMENTAL=0 RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort" \
-        RUSTDOCFLAGS="-Cpanic=abort" cargo test --features=all
+        RUSTDOCFLAGS="-Cpanic=abort" cargo +nightly test --features=all
     just test-clean
     grcov ./target/debug/ -s . -t html --llvm --branch --ignore-not-existing -o ./target/debug/coverage/
     if command -v xdg-open 2>&1 >/dev/null; then \
