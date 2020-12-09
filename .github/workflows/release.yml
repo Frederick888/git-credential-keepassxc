@@ -60,6 +60,7 @@ jobs:
           override: true
 
       - name: Cache
+        if: "!contains(matrix.os, 'macos')"
         uses: actions/cache@v2
         with:
           path: |
