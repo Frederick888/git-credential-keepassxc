@@ -11,9 +11,6 @@ repository = "https://github.com/Frederick888/git-credential-keepassxc"
 keywords = ["git", "keepass", "keepassxc", "command-line"]
 categories = ["command-line-utilities", "authentication", "development-tools"]
 
-[badges]
-travis-ci = { repository = "Frederick888/git-credential-keepassxc" }
-
 [features]
 default = []
 all = ["notification", "encryption", "yubikey", "strict-caller"]
