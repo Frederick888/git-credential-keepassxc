@@ -15,6 +15,8 @@ use once_cell::sync::OnceCell;
 use slog::{Drain, Level, Logger};
 use std::env;
 use std::io::{self, Read, Write};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str::FromStr;
@@ -769,6 +771,16 @@ fn edit<T: AsRef<Path>>(config_path: T) -> Result<()> {
             "Failed to find an editor automatically. Go ahead and open {} in your favourite editor :)",
             config_path.as_ref().to_string_lossy()
         );
+    }
+
+    #[cfg(unix)]
+    {
+        let metadata = Path::metadata(config_path.as_ref());
+        if let Ok(metadata) = metadata {
+            if metadata.permissions().mode() & 0o377 > 0 {
+                warn!("Permission of configuration file might be too open (suggested 0o400)");
+            }
+        }
     }
 
     Ok(())
