@@ -12,7 +12,7 @@ addons:
       - libusb-1.0-0-dev
       - libdbus-1-dev
   homebrew:
-    update: true
+    update: false
     packages:
       - libusb
 
