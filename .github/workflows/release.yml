@@ -46,7 +46,9 @@ jobs:
         run: sudo apt-get install -y libusb-1.0-0 libusb-1.0-0-dev libdbus-1-dev
       - name: Install macOS Dependencies
         if: contains(matrix.os, 'macos')
-        run: brew install coreutils
+        run: |
+          brew install coreutils gnu-tar
+          echo PATH="/usr/local/opt/gnu-tar/libexec/gnubin:$PATH" >> $GITHUB_ENV
       - name: Install Windows Dependencies
         if: contains(matrix.os, 'windows')
         run: choco install zip
@@ -60,7 +62,6 @@ jobs:
           override: true
 
       - name: Cache
-        if: "!contains(matrix.os, 'macos')"
         uses: actions/cache@v2
         with:
           path: |
