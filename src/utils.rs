@@ -190,12 +190,12 @@ pub struct MessagingUtils {}
 #[cfg(test)]
 mock! {
     pub MessagingUtils {}
-    pub trait MessagingUtilsTrait {
+    impl MessagingUtilsTrait for MessagingUtils {
         fn exchange_message(request: String) -> Result<String>;
         fn send_message(request: String) -> Result<()>;
         fn receive_message() -> Result<String>;
     }
-    pub trait MessagingUtilsInternalTrait {
+    impl MessagingUtilsInternalTrait for MessagingUtils {
         fn read_to_end() -> Result<String>;
     }
 }
