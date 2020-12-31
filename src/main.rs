@@ -22,7 +22,6 @@ use std::process::Command;
 use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
-use sysinfo::{get_current_pid, ProcessExt, System, SystemExt};
 use utils::callers::CurrentCaller;
 use utils::*;
 
