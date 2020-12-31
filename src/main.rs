@@ -23,6 +23,7 @@ use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
 use sysinfo::{get_current_pid, ProcessExt, System, SystemExt};
+use utils::callers::CurrentCaller;
 use utils::*;
 
 static LOGGER: OnceCell<Logger> = OnceCell::new();
@@ -374,7 +375,7 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     }
 }
 
-fn verify_caller(config: &Config) -> Result<Option<(usize, PathBuf)>> {
+fn verify_caller(config: &Config) -> Result<Option<CurrentCaller>> {
     if config.count_callers() == 0
         && (cfg!(not(feature = "strict-caller")) || config.count_databases() == 0)
     {
@@ -383,60 +384,11 @@ fn verify_caller(config: &Config) -> Result<Option<(usize, PathBuf)>> {
         );
         return Ok(None);
     }
-    let pid = get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;
-    info!("PID: {}", pid);
-    let system = System::new_all();
-    let proc = system
-        .get_process(pid)
-        .ok_or_else(|| anyhow!("Failed to retrieve information of current process"))?;
-    let ppid = proc
-        .parent()
-        .ok_or_else(|| anyhow!("Failed to retrieve parent PID"))?;
-    info!("PPID: {}", ppid);
-    let pproc = system
-        .get_process(ppid)
-        .ok_or_else(|| anyhow!("Failed to retrieve parent process information"))?;
-    let ppath = pproc.exe();
-    info!("Parent process path: {}", ppath.to_string_lossy());
-    let canonical_ppath = ppath.canonicalize();
-    if canonical_ppath.is_ok() {
-        info!(
-            "Canonical parent process path: {}",
-            canonical_ppath.as_ref().unwrap().to_string_lossy()
-        );
-    } else {
-        warn!("Cannot determine canonical parent process path");
-    }
+    let current_caller = CurrentCaller::new()?;
     let callers = config.get_callers()?;
     let matching_callers: Vec<_> = callers
         .iter()
-        .filter(|caller| {
-            #[cfg(unix)]
-            if caller.uid.map(|id| id != proc.uid).unwrap_or(false)
-                || caller.gid.map(|id| id != proc.gid).unwrap_or(false)
-            {
-                return false;
-            }
-            if caller.canonicalize && canonical_ppath.is_ok() {
-                let canonical_caller = PathBuf::from(&caller.path).canonicalize();
-                if canonical_caller
-                    .as_ref()
-                    .map(|p| p.to_string_lossy() != caller.path)
-                    .unwrap_or_else(|_| false)
-                {
-                    info!(
-                        "Canonical caller path: {}",
-                        canonical_caller.as_ref().unwrap().to_string_lossy()
-                    );
-                }
-                if canonical_caller.is_ok()
-                    && canonical_ppath.as_ref().unwrap() == &canonical_caller.unwrap()
-                {
-                    return true;
-                }
-            }
-            caller.path == ppath.to_string_lossy()
-        })
+        .filter(|caller| current_caller.matches(caller))
         .collect();
     if matching_callers.is_empty() {
         if config.count_callers() == 0 && cfg!(feature = "strict-caller") {
@@ -444,7 +396,7 @@ fn verify_caller(config: &Config) -> Result<Option<(usize, PathBuf)>> {
         }
         Err(anyhow!("You are not allowed to use this program"))
     } else {
-        Ok(Some((ppid as usize, pproc.exe().to_owned())))
+        Ok(Some(current_caller))
     }
 }
 
@@ -516,20 +468,24 @@ fn get_logins<T: AsRef<Path>>(
     get_mode: &Option<GetMode>,
 ) -> Result<()> {
     let config = Config::read_from(config_path.as_ref())?;
-    let _verify_caller = verify_caller(&config)?;
+    let _current_caller = verify_caller(&config)?;
     // read credential request
     let (git_req, url) = read_git_request()?;
 
     #[cfg(feature = "notification")]
     {
-        if let Some((ppid, ppath)) = _verify_caller {
+        if let Some(current_caller) = _current_caller {
             use notify_rust::{Notification, Timeout};
             let notification = Notification::new()
                 .summary("Credential request")
                 .body(&format!(
                     "{} ({}) has requested credential for {}",
-                    ppath.file_name().unwrap_or_default().to_string_lossy(),
-                    ppid,
+                    current_caller
+                        .path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy(),
+                    current_caller.pid,
                     url
                 ))
                 .timeout(Timeout::Milliseconds(6000))
