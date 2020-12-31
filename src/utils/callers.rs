@@ -7,7 +7,7 @@ use sysinfo::{get_current_pid, ProcessExt, System, SystemExt};
 
 pub struct CurrentCaller {
     pub path: PathBuf,
-    pub pid: i32,
+    pub pid: u32,
     #[cfg(unix)]
     pub uid: u32,
     #[cfg(unix)]
@@ -44,7 +44,7 @@ impl CurrentCaller {
         }
         Ok(Self {
             path: ppath.to_owned(),
-            pid: ppid,
+            pid: ppid as u32,
             #[cfg(unix)]
             uid: pproc.uid,
             #[cfg(unix)]
