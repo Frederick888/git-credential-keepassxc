@@ -165,19 +165,22 @@ fn associated_databases<T: AsRef<str>>(
     }
 }
 
-fn handle_secondary_encryption(config_file: &mut Config) -> Result<()> {
-    println!("There are existing encryption profile(s). If you'd like to reuse an existing encryption key, plug in the corresponding (hardware) token.");
+fn prompt_for_confirmation() -> Result<()> {
     print!("Press Enter to continue... ");
     std::io::stdout().flush()?;
     std::io::stdin().read_line(&mut String::new())?;
+    Ok(())
+}
+
+fn handle_secondary_encryption(config_file: &mut Config) -> Result<()> {
+    println!("There are existing encryption profile(s). If you'd like to reuse an existing encryption key, plug in the corresponding (hardware) token.");
+    prompt_for_confirmation()?;
     if config_file.get_encryption_key().is_err() {
         warn!("Failed to extract encryption key from existing profiles");
         println!("Failed to extract the encryption key! Continue to configure a new (hardware) token using a DIFFERENT encryption key.")
     }
     println!("Now make sure you've plugged in the (hardware) token you'd like to use.");
-    print!("Press Enter to continue... ");
-    std::io::stdout().flush()?;
-    std::io::stdin().read_line(&mut String::new())?;
+    prompt_for_confirmation()?;
     Ok(())
 }
 
@@ -194,9 +197,7 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         warn!("Configuring database when strict-caller feature is enabled and no caller profiles are defined");
         println!("You are about to configure a new database before configuring any callers while strict-caller feature is enabled.");
         println!("You won't be able to use this program unless you plan to add caller profiles manually!");
-        print!("Press Enter to continue... ");
-        std::io::stdout().flush()?;
-        std::io::stdin().read_line(&mut String::new())?;
+        prompt_for_confirmation()?;
     }
 
     // start session
