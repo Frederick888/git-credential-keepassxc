@@ -197,6 +197,10 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         warn!("Configuring database when strict-caller feature is enabled and no caller profiles are defined");
         println!("You are about to configure a new database before configuring any callers while strict-caller feature is enabled.");
         println!("You won't be able to use this program unless you plan to add caller profiles manually!");
+        println!(
+            "Tip: Check out `{} caller me --help` to add yourself to the allowed callers list.",
+            env!("CARGO_BIN_NAME")
+        );
         prompt_for_confirmation()?;
     }
 
@@ -337,23 +341,49 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
 
     let subcommand = args.subcommand_matches("caller").unwrap();
     match subcommand.subcommand() {
-        ("add", Some(add_args)) => {
-            let path = add_args
-                .value_of("PATH")
-                .ok_or_else(|| anyhow!("Must specify path"))?;
-            let caller = Caller {
-                path: path.to_owned(),
-                uid: if let Some(id) = add_args.value_of("uid") {
-                    Some(u32::from_str(id).map_err(|_| anyhow!("Invalid UID"))?)
-                } else {
-                    None
-                },
-                gid: if let Some(id) = add_args.value_of("gid") {
-                    Some(u32::from_str(id).map_err(|_| anyhow!("Invalid GID"))?)
-                } else {
-                    None
-                },
-                canonicalize: add_args.is_present("canonicalize"),
+        ("add", Some(sub_args)) | ("me", Some(sub_args)) => {
+            let caller = match subcommand.subcommand().0 {
+                "add" => {
+                    let path = sub_args
+                        .value_of("PATH")
+                        .ok_or_else(|| anyhow!("Must specify path"))?;
+                    Caller {
+                        path: path.to_owned(),
+                        uid: if let Some(id) = sub_args.value_of("uid") {
+                            Some(u32::from_str(id).map_err(|_| anyhow!("Invalid UID"))?)
+                        } else {
+                            None
+                        },
+                        gid: if let Some(id) = sub_args.value_of("gid") {
+                            Some(u32::from_str(id).map_err(|_| anyhow!("Invalid GID"))?)
+                        } else {
+                            None
+                        },
+                        canonicalize: sub_args.is_present("canonicalize"),
+                    }
+                }
+                "me" => {
+                    let current_caller = CurrentCaller::new()?;
+                    #[cfg(unix)]
+                    let caller = Caller::from_current_caller(
+                        &current_caller,
+                        sub_args.is_present("no-uid"),
+                        sub_args.is_present("no-gid"),
+                        sub_args.is_present("canonicalize"),
+                    );
+                    #[cfg(windows)]
+                    let caller = Caller::from_current_caller(
+                        &current_caller,
+                        sub_args.is_present("canonicalize"),
+                    );
+                    println!(
+                        "Gonna save current caller to allowed callers list:\n{}",
+                        serde_json::to_string_pretty(&caller)?
+                    );
+                    prompt_for_confirmation()?;
+                    caller
+                }
+                _ => unreachable!("Unreachable code when processing caller subcommand"),
             };
             let encryption = subcommand
                 .subcommand_matches("add")

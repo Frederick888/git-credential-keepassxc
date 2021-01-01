@@ -1,3 +1,4 @@
+use crate::utils::callers::CurrentCaller;
 #[allow(unused_imports)]
 use crate::{debug, error, info, warn};
 use aes_gcm::aead::generic_array::{typenum, GenericArray};
@@ -566,6 +567,41 @@ pub struct Caller {
     pub gid: Option<u32>,
     #[serde(default = "default_as_false")]
     pub canonicalize: bool,
+}
+
+impl Caller {
+    #[cfg(unix)]
+    pub fn from_current_caller(
+        current_caller: &CurrentCaller,
+        no_uid: bool,
+        no_gid: bool,
+        canonicalize: bool,
+    ) -> Self {
+        Self {
+            path: String::from(current_caller.path.to_string_lossy()),
+            uid: if no_uid {
+                None
+            } else {
+                Some(current_caller.uid)
+            },
+            gid: if no_gid {
+                None
+            } else {
+                Some(current_caller.gid)
+            },
+            canonicalize,
+        }
+    }
+
+    #[cfg(windows)]
+    pub fn from_current_caller(current_caller: &CurrentCaller, canonicalize: bool) -> Self {
+        Self {
+            path: String::from(current_caller.path.to_string_lossy()),
+            uid: None,
+            gid: None,
+            canonicalize,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

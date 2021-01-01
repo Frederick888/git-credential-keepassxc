@@ -89,5 +89,24 @@ subcommands:
                     Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
                     Leave empty ("") to use existing encryption profile in configuration file.
                   takes_value: true
+        - me:
+            about: Show current caller and optionally add it to allowed callers list
+            args:
+              - no-uid:
+                  long: no-uid
+                  help: Do not save UID in the caller profile
+              - no-gid:
+                  long: no-gid
+                  help: Do not save GID in the caller profile
+              - canonicalize:
+                  long: canonicalize
+                  help: Additionally compare canonical caller paths during verification
+              - encrypt:
+                  long: encrypt
+                  help: |-
+                    Encrypt caller profiles.
+                    Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
+                    Leave empty ("") to use existing encryption profile in configuration file.
+                  takes_value: true
         - clear:
             about: Clear the allowed callers list
