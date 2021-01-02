@@ -81,3 +81,93 @@ impl CurrentCaller {
         caller.path == self.path.to_string_lossy()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MOCK_PROCESS_PATH: &'static str = "/usr/bin/false";
+
+    #[test]
+    fn test_00_path_check() {
+        let current_caller = CurrentCaller {
+            path: PathBuf::from(MOCK_PROCESS_PATH),
+            pid: 1,
+            #[cfg(unix)]
+            uid: 1,
+            #[cfg(unix)]
+            gid: 1,
+            canonical_path: None,
+        };
+
+        let caller_matches = Caller {
+            path: MOCK_PROCESS_PATH.to_owned(),
+            uid: None,
+            gid: None,
+            canonicalize: false,
+        };
+        assert!(current_caller.matches(&caller_matches));
+
+        let caller_mismatches = Caller {
+            path: MOCK_PROCESS_PATH.to_owned() + "1",
+            uid: None,
+            gid: None,
+            canonicalize: false,
+        };
+        assert!(!current_caller.matches(&caller_mismatches));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_01_unix_uid_gid_check() {
+        let current_caller = CurrentCaller {
+            path: PathBuf::from(MOCK_PROCESS_PATH),
+            pid: 1,
+            uid: 1,
+            gid: 1,
+            canonical_path: None,
+        };
+
+        let caller_matches = Caller {
+            path: MOCK_PROCESS_PATH.to_owned(),
+            uid: Some(1),
+            gid: Some(1),
+            canonicalize: false,
+        };
+        assert!(current_caller.matches(&caller_matches));
+
+        let caller_mismatches = Caller {
+            path: MOCK_PROCESS_PATH.to_owned(),
+            uid: Some(2),
+            gid: Some(1),
+            canonicalize: false,
+        };
+        assert!(!current_caller.matches(&caller_mismatches));
+
+        let caller_mismatches = Caller {
+            path: MOCK_PROCESS_PATH.to_owned(),
+            uid: Some(1),
+            gid: Some(2),
+            canonicalize: false,
+        };
+        assert!(!current_caller.matches(&caller_mismatches));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_02_windows_uid_gid_ignored() {
+        let current_caller = CurrentCaller {
+            path: PathBuf::from(MOCK_PROCESS_PATH),
+            pid: 1,
+            canonical_path: None,
+        };
+
+        let caller_matches = Caller {
+            path: MOCK_PROCESS_PATH.to_owned(),
+            uid: Some(1),
+            gid: Some(1),
+            canonicalize: false,
+        };
+        assert!(current_caller.matches(&caller_matches));
+    }
+}
