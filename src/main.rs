@@ -646,6 +646,7 @@ fn store_login<T: AsRef<Path>>(
         {
             // KeePassXC treats this as error, and Git sometimes does this as the operation should
             // be idempotent
+            info!("No changes detected, ignoring request");
             return Ok(());
         }
 
