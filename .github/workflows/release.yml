@@ -96,15 +96,13 @@ jobs:
           zip -j "./${{ matrix.os }}-minimal.zip" target/release/git-credential-keepassxc target/release/git-credential-keepassxc.exe
           echo "::set-output name=filename::${{ matrix.os }}-minimal"
       - name: "Hash (No Features)"
-        id: hash_minimal_unix
         if: "!contains(matrix.os, 'windows')"
-        run: echo "::set-output name=filehash::$(sha256sum ${{ steps.pack_minimal.outputs.filename }}.zip | cut -d ' ' -f 1)"
+        run: echo "$(sha256sum ${{ steps.pack_minimal.outputs.filename }}.zip | cut -d ' ' -f 1)" > ${{ steps.pack_minimal.outputs.filename }}.zip.sha256sum
       - name: "Hash (No Features)"
-        id: hash_minimal_windows
         if: contains(matrix.os, 'windows')
         run: |
           $FileHash=(certutil -hashfile ${{ steps.pack_minimal.outputs.filename }}.zip SHA256 | findstr /v hash | findstr /v SHA).replace(" ", "")
-          echo "::set-output name=filehash::$FileHash"
+          echo "$FileHash" > ${{ steps.pack_minimal.outputs.filename }}.zip.sha256sum
       - name: "Upload (No Features)"
         uses: actions/upload-release-asset@v1
         env:
@@ -112,8 +110,17 @@ jobs:
         with:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: ./${{ steps.pack_minimal.outputs.filename }}.zip
-          asset_name: ${{ steps.pack_minimal.outputs.filename }}-${{ steps.hash_minimal_unix.outputs.filehash }}${{ steps.hash_minimal_windows.outputs.filehash }}.zip
+          asset_name: ${{ steps.pack_minimal.outputs.filename }}.zip
           asset_content_type: application/zip
+      - name: "Upload Hash (No Features)"
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_path: ./${{ steps.pack_minimal.outputs.filename }}.zip.sha256sum
+          asset_name: ${{ steps.pack_minimal.outputs.filename }}.zip.sha256sum
+          asset_content_type: text/plain
 
       - name: "Build (All Features)"
         uses: actions-rs/cargo@v1
@@ -126,15 +133,13 @@ jobs:
           zip -j "./${{ matrix.os }}-full.zip" target/release/git-credential-keepassxc target/release/git-credential-keepassxc.exe
           echo "::set-output name=filename::${{ matrix.os }}-full"
       - name: "Hash (All Features)"
-        id: hash_full_unix
         if: "!contains(matrix.os, 'windows')"
-        run: echo "::set-output name=filehash::$(sha256sum ${{ steps.pack_full.outputs.filename }}.zip | cut -d ' ' -f 1)"
+        run: echo "$(sha256sum ${{ steps.pack_full.outputs.filename }}.zip | cut -d ' ' -f 1)" > ${{ steps.pack_full.outputs.filename }}.zip.sha256sum
       - name: "Hash (All Features)"
-        id: hash_full_windows
         if: contains(matrix.os, 'windows')
         run: |
           $FileHash=(certutil -hashfile ${{ steps.pack_full.outputs.filename }}.zip SHA256 | findstr /v hash | findstr /v SHA).replace(" ", "")
-          echo "::set-output name=filehash::$FileHash"
+          echo "$FileHash" > ${{ steps.pack_full.outputs.filename }}.zip.sha256sum
       - name: "Upload (All Features)"
         uses: actions/upload-release-asset@v1
         env:
@@ -142,8 +147,17 @@ jobs:
         with:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: ./${{ steps.pack_full.outputs.filename }}.zip
-          asset_name: ${{ steps.pack_full.outputs.filename }}-${{ steps.hash_full_unix.outputs.filehash }}${{ steps.hash_full_windows.outputs.filehash }}.zip
+          asset_name: ${{ steps.pack_full.outputs.filename }}.zip
           asset_content_type: application/zip
+      - name: "Upload Hash (All Features)"
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_path: ./${{ steps.pack_full.outputs.filename }}.zip.sha256sum
+          asset_name: ${{ steps.pack_full.outputs.filename }}.zip.sha256sum
+          asset_content_type: text/plain
 
   publish_release:
     runs-on: ubuntu-latest
