@@ -577,7 +577,7 @@ dependencies = [
 
 [[package]]
 name = "git-credential-keepassxc"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -1552,9 +1552,9 @@ checksum = "e66366e18dc58b46801afbf2ca7661a9f59cc8c5962c29892b6039b4f86fa992"
 
 [[package]]
 name = "yubico_manager"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cd973d55d48ce0ab773a8d14b6e1bf03825be140f6b6223781d1b2b38dc581c"
+checksum = "b79d3ac54a7d8992685399774d9d489552baff6c9e7040f6a6bfcb5b6ac88408"
 dependencies = [
  "aes-soft 0.4.0",
  "bitflags 1.2.1",
