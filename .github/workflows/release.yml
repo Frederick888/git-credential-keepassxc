@@ -97,11 +97,14 @@ jobs:
           echo "::set-output name=filename::${{ matrix.os }}-minimal"
       - name: "Hash (No Features, Unix)"
         if: "!contains(matrix.os, 'windows')"
-        run: echo "$(sha256sum ${{ steps.pack_minimal.outputs.filename }}.zip | cut -d ' ' -f 1)" > ${{ steps.pack_minimal.outputs.filename }}.zip.sha256sum
+        run: |
+          echo "$(sha256sum ${{ steps.pack_minimal.outputs.filename }}.zip | cut -d ' ' -f 1)" > ${{ steps.pack_minimal.outputs.filename }}.zip.sha256sum
+          cat ${{ steps.pack_minimal.outputs.filename }}.zip.sha256sum
       - name: "Hash (No Features, Windows)"
         if: contains(matrix.os, 'windows')
         run: |
           $FileHash=(certutil -hashfile ${{ steps.pack_minimal.outputs.filename }}.zip SHA256 | findstr /v hash | findstr /v SHA).replace(" ", "")
+          echo "$FileHash"
           echo "$FileHash" > ${{ steps.pack_minimal.outputs.filename }}.zip.sha256sum
       - name: "Upload (No Features)"
         uses: actions/upload-release-asset@v1
@@ -134,11 +137,14 @@ jobs:
           echo "::set-output name=filename::${{ matrix.os }}-full"
       - name: "Hash (All Features, Unix)"
         if: "!contains(matrix.os, 'windows')"
-        run: echo "$(sha256sum ${{ steps.pack_full.outputs.filename }}.zip | cut -d ' ' -f 1)" > ${{ steps.pack_full.outputs.filename }}.zip.sha256sum
+        run: |
+          echo "$(sha256sum ${{ steps.pack_full.outputs.filename }}.zip | cut -d ' ' -f 1)" > ${{ steps.pack_full.outputs.filename }}.zip.sha256sum
+          cat ${{ steps.pack_full.outputs.filename }}.zip.sha256sum
       - name: "Hash (All Features, Windows)"
         if: contains(matrix.os, 'windows')
         run: |
           $FileHash=(certutil -hashfile ${{ steps.pack_full.outputs.filename }}.zip SHA256 | findstr /v hash | findstr /v SHA).replace(" ", "")
+          echo "$FileHash"
           echo "$FileHash" > ${{ steps.pack_full.outputs.filename }}.zip.sha256sum
       - name: "Upload (All Features)"
         uses: actions/upload-release-asset@v1
