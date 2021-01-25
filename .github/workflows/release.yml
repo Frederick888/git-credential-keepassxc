@@ -95,10 +95,10 @@ jobs:
         run: |
           zip -j "./${{ matrix.os }}-minimal.zip" target/release/git-credential-keepassxc target/release/git-credential-keepassxc.exe
           echo "::set-output name=filename::${{ matrix.os }}-minimal"
-      - name: "Hash (No Features)"
+      - name: "Hash (No Features, Unix)"
         if: "!contains(matrix.os, 'windows')"
         run: echo "$(sha256sum ${{ steps.pack_minimal.outputs.filename }}.zip | cut -d ' ' -f 1)" > ${{ steps.pack_minimal.outputs.filename }}.zip.sha256sum
-      - name: "Hash (No Features)"
+      - name: "Hash (No Features, Windows)"
         if: contains(matrix.os, 'windows')
         run: |
           $FileHash=(certutil -hashfile ${{ steps.pack_minimal.outputs.filename }}.zip SHA256 | findstr /v hash | findstr /v SHA).replace(" ", "")
@@ -132,10 +132,10 @@ jobs:
         run: |
           zip -j "./${{ matrix.os }}-full.zip" target/release/git-credential-keepassxc target/release/git-credential-keepassxc.exe
           echo "::set-output name=filename::${{ matrix.os }}-full"
-      - name: "Hash (All Features)"
+      - name: "Hash (All Features, Unix)"
         if: "!contains(matrix.os, 'windows')"
         run: echo "$(sha256sum ${{ steps.pack_full.outputs.filename }}.zip | cut -d ' ' -f 1)" > ${{ steps.pack_full.outputs.filename }}.zip.sha256sum
-      - name: "Hash (All Features)"
+      - name: "Hash (All Features, Windows)"
         if: contains(matrix.os, 'windows')
         run: |
           $FileHash=(certutil -hashfile ${{ steps.pack_full.outputs.filename }}.zip SHA256 | findstr /v hash | findstr /v SHA).replace(" ", "")
