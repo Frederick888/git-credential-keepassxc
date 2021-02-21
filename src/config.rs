@@ -387,7 +387,7 @@ impl Config {
     pub fn add_encryption(&mut self, profile: &str) -> Result<()> {
         // strict match, so that we can add multiple tokens
         let existing_profile = self.get_encryption(true);
-        // avoid adding multiple encryption profiles for single underlying hardward/etc
+        // avoid adding multiple encryption profiles for single underlying hardware/etc
         match existing_profile {
             // user would like to use an existing profile
             Ok(_) if profile.is_empty() => Ok(()),
@@ -397,7 +397,7 @@ impl Config {
             Ok(existing_profile) if existing_profile.to_string() == profile => Ok(()),
             // existing profile found, different specs
             Ok(_) => Err(anyhow!(
-                "Encryption profile for this (hardward) token already exists"
+                "Encryption profile for this (hardware) token already exists"
             )),
             Err(_) => {
                 // no existing profiles
