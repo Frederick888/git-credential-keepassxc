@@ -706,6 +706,7 @@ impl FromStr for Encryption {
                 } else {
                     rng.sample_iter(Alphanumeric)
                         .take(HMAC_SHA1_CHALLENGE_LENGTH)
+                        .map(char::from)
                         .collect()
                 };
                 Ok(Encryption::ChallengeResponse {
@@ -745,9 +746,10 @@ impl MockYubiKeyTrait {
         mock_yubikey
             .expect_challenge_response_hmac()
             .returning(|challenge, _| {
-                let mut mac =
-                    tests::HmacSha1::new_varkey(tests::TEST_YUBIKEY_HMAC_SHA1_SECRET.as_bytes())
-                        .unwrap();
+                let mut mac = tests::HmacSha1::new_from_slice(
+                    tests::TEST_YUBIKEY_HMAC_SHA1_SECRET.as_bytes(),
+                )
+                .unwrap();
                 mac.update(challenge.as_bytes());
                 let result = mac.finalize();
                 let bytes: Vec<_> = result.into_bytes().into_iter().collect();
