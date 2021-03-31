@@ -721,6 +721,37 @@ fn erase_login() -> Result<()> {
     Ok(())
 }
 
+fn lock_database<T: AsRef<Path>>(config_path: T) -> Result<()> {
+    let config = Config::read_from(config_path.as_ref())?;
+    verify_caller(&config)?;
+    // start session
+    let (client_id, _, _) = start_session()?;
+
+    let ld_req = LockDatabaseRequest::new();
+    let ld_resp = ld_req.send(&client_id, false)?;
+
+    if let Some(success) = ld_resp.success {
+        // wtf?!?!
+        if success.0
+            && (ld_resp.error.is_none()
+                || ld_resp.error.as_ref().unwrap().is_empty()
+                || ld_resp.error.as_ref().unwrap() == "success")
+        {
+            Ok(())
+        } else {
+            error!(
+                "Failed to lock database. Error: {}, Error Code: {}",
+                ld_resp.error.unwrap_or_else(|| "N/A".to_owned()),
+                ld_resp.error_code.unwrap_or_else(|| "N/A".to_owned())
+            );
+            Err(anyhow!("Failed to lock database"))
+        }
+    } else {
+        error!("Lock database request failed");
+        Err(anyhow!("Lock database request failed"))
+    }
+}
+
 fn edit<T: AsRef<Path>>(config_path: T) -> Result<()> {
     const KNOWN_EDITORS: &'static [&'static str] = &["nvim", "vim", "kak", "vi", "nano", "ex"];
     let find_editor = || -> Option<String> {
@@ -862,6 +893,7 @@ fn real_main() -> Result<()> {
         "get" | "totp" => get_logins(config_path, &unlock_options, &get_mode),
         "store" => store_login(config_path, &unlock_options),
         "erase" => erase_login(),
+        "lock" => lock_database(config_path),
         _ => Err(anyhow!(anyhow!("Unrecognised subcommand"))),
     }
 }

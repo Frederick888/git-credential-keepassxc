@@ -108,6 +108,7 @@ impl_cipher_text!([
     (TestAssociateRequest, TestAssociateResponse),
     (GetLoginsRequest, GetLoginsResponse),
     (SetLoginRequest, SetLoginResponse),
+    (LockDatabaseRequest, LockDatabaseResponse),
     // (GetDatabaseGroupsRequest, GetDatabaseGroupsResponse),
     (CreateNewGroupRequest, CreateNewGroupResponse),
     (GetTotpRequest, GetTotpResponse),
@@ -455,7 +456,29 @@ pub struct SetLoginResponse {
  * https://github.com/keepassxreboot/keepassxc-browser/blob/develop/keepassxc-protocol.md#lock-database
  */
 
-// message_req_type!(LockDatabaseReq, LockDatabase, "lock-database-req");
+#[derive(Serialize, Deserialize, Debug)]
+pub struct LockDatabaseRequest {
+    pub action: KeePassAction,
+}
+
+impl LockDatabaseRequest {
+    pub fn new() -> Self {
+        Self {
+            action: KeePassAction::LockDatabase,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct LockDatabaseResponse {
+    /* generic fields */
+    pub version: Option<String>,
+    pub success: Option<KeePassBoolean>,
+    pub nonce: Option<String>,
+    pub error: Option<String>,
+    #[serde(rename = "errorCode")]
+    pub error_code: Option<String>,
+}
 
 /*
  * get-database-groups
