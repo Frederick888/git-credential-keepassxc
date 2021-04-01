@@ -87,7 +87,11 @@ where
 
     fn get_action(&self) -> KeePassAction;
 }
-pub trait CipherTextResponse {}
+pub trait CipherTextResponse {
+    fn get_success(&self) -> &Option<KeePassBoolean>;
+    fn get_error(&self) -> &Option<String>;
+    fn get_error_code(&self) -> &Option<String>;
+}
 
 macro_rules! impl_cipher_text {
     ([$(($request:ident, $response:ident),)*]) => {
@@ -98,7 +102,17 @@ macro_rules! impl_cipher_text {
                 }
             }
 
-            impl CipherTextResponse for $response {}
+            impl CipherTextResponse for $response {
+                fn get_success(&self) -> &Option<KeePassBoolean> {
+                    &self.success
+                }
+                fn get_error(&self) -> &Option<String> {
+                    &self.error
+                }
+                fn get_error_code(&self) -> &Option<String> {
+                    &self.error_code
+                }
+            }
         )*
     };
 }
@@ -586,6 +600,9 @@ pub struct GetTotpResponse {
     pub version: Option<String>,
     pub nonce: Option<String>,
     pub success: Option<KeePassBoolean>,
+    pub error: Option<String>,
+    #[serde(rename = "errorCode")]
+    pub error_code: Option<String>,
 }
 
 // no specs, need to dig into codes
