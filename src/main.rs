@@ -690,26 +690,8 @@ fn store_login<T: AsRef<Path>>(
         )
     };
     let sl_resp = sl_req.send(&client_id, false)?;
-    if let Some(success) = sl_resp.success {
-        // wtf?!?!
-        if success.0
-            && (sl_resp.error.is_none()
-                || sl_resp.error.as_ref().unwrap().is_empty()
-                || sl_resp.error.as_ref().unwrap() == "success")
-        {
-            Ok(())
-        } else {
-            error!(
-                "Failed to store login. Error: {}, Error Code: {}",
-                sl_resp.error.unwrap_or_else(|| "N/A".to_owned()),
-                sl_resp.error_code.unwrap_or_else(|| "N/A".to_owned())
-            );
-            Err(anyhow!("Failed to store login"))
-        }
-    } else {
-        error!("Set login request failed");
-        Err(anyhow!("Set login request failed"))
-    }
+
+    sl_resp.check(&sl_req.get_action())
 }
 
 fn erase_login() -> Result<()> {
@@ -730,26 +712,7 @@ fn lock_database<T: AsRef<Path>>(config_path: T) -> Result<()> {
     let ld_req = LockDatabaseRequest::new();
     let ld_resp = ld_req.send(&client_id, false)?;
 
-    if let Some(success) = ld_resp.success {
-        // wtf?!?!
-        if success.0
-            && (ld_resp.error.is_none()
-                || ld_resp.error.as_ref().unwrap().is_empty()
-                || ld_resp.error.as_ref().unwrap() == "success")
-        {
-            Ok(())
-        } else {
-            error!(
-                "Failed to lock database. Error: {}, Error Code: {}",
-                ld_resp.error.unwrap_or_else(|| "N/A".to_owned()),
-                ld_resp.error_code.unwrap_or_else(|| "N/A".to_owned())
-            );
-            Err(anyhow!("Failed to lock database"))
-        }
-    } else {
-        error!("Lock database request failed");
-        Err(anyhow!("Lock database request failed"))
-    }
+    ld_resp.check(&ld_req.get_action())
 }
 
 fn edit<T: AsRef<Path>>(config_path: T) -> Result<()> {

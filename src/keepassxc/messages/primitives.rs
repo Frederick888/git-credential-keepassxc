@@ -40,10 +40,18 @@ impl AsRef<bool> for KeePassBoolean {
 }
 
 macro_rules! define_action {
-    ([$(($variant:ident, $string:literal),)*]) => {
+    ([$(($variant:ident, $string:literal, $readable:literal),)*]) => {
         #[derive(Clone, Debug, PartialEq)]
         pub enum KeePassAction {
             $($variant,)*
+        }
+
+        impl KeePassAction {
+            pub fn to_readable(&self) -> String {
+                match *self {
+                    $(Self::$variant => $readable.to_owned(),)*
+                }
+            }
         }
 
         impl ToString for KeePassAction {
@@ -81,17 +89,25 @@ macro_rules! define_action {
 }
 
 define_action!([
-    (ChangePublicKeys, "change-public-keys"),
-    (GetDatabaseHash, "get-databasehash"),
-    (Associate, "associate"),
-    (TestAssociate, "test-associate"),
-    (GeneratePassword, "generate-password"),
-    (GetLogins, "get-logins"),
-    (SetLogin, "set-login"),
-    (LockDatabase, "lock-database"),
-    (GetDatabaseGroups, "get-database-groups"),
-    (DatabaseLocked, "database-locked"),
-    (DatabaseUnlocked, "database-unlocked"),
-    (CreateNewGroup, "create-new-group"),
-    (GetTotp, "get-totp"),
+    (
+        ChangePublicKeys,
+        "change-public-keys",
+        "exchange public keys"
+    ),
+    (GetDatabaseHash, "get-databasehash", "get database hash"),
+    (Associate, "associate", "associate"),
+    (TestAssociate, "test-associate", "test associate"),
+    (GeneratePassword, "generate-password", "generate password"),
+    (GetLogins, "get-logins", "get logins"),
+    (SetLogin, "set-login", "set logins"),
+    (LockDatabase, "lock-database", "lock database"),
+    (
+        GetDatabaseGroups,
+        "get-database-groups",
+        "get database groups"
+    ),
+    (DatabaseLocked, "database-locked", "database locked"),
+    (DatabaseUnlocked, "database-unlocked", "database unlocked"),
+    (CreateNewGroup, "create-new-group", "create new group"),
+    (GetTotp, "get-totp", "get TOTP"),
 ]);

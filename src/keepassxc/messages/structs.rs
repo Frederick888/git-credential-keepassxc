@@ -91,6 +91,37 @@ pub trait CipherTextResponse {
     fn get_success(&self) -> &Option<KeePassBoolean>;
     fn get_error(&self) -> &Option<String>;
     fn get_error_code(&self) -> &Option<String>;
+    fn check(self, action: &KeePassAction) -> Result<()>;
+}
+fn check_cipher_text_response<T: CipherTextResponse>(response: T, action: &str) -> Result<()> {
+    if let Some(success) = response.get_success() {
+        // wtf?!?!
+        if success.0
+            && (response.get_error().is_none()
+                || response.get_error().as_ref().unwrap().is_empty()
+                || response.get_error().as_ref().unwrap() == "success")
+        {
+            Ok(())
+        } else {
+            error!(
+                "Failed to {}. Error: {}, Error Code: {}",
+                action,
+                response
+                    .get_error()
+                    .clone()
+                    .unwrap_or_else(|| "N/A".to_owned()),
+                response
+                    .get_error_code()
+                    .clone()
+                    .unwrap_or_else(|| "N/A".to_owned())
+            );
+            Err(anyhow::anyhow!("Failed to {}", action))
+        }
+    } else {
+        let action = action[..1].to_ascii_uppercase() + &action[1..];
+        error!("{} request failed", action);
+        Err(anyhow::anyhow!("{} request failed", action))
+    }
 }
 
 macro_rules! impl_cipher_text {
@@ -111,6 +142,9 @@ macro_rules! impl_cipher_text {
                 }
                 fn get_error_code(&self) -> &Option<String> {
                     &self.error_code
+                }
+                fn check(self, action: &KeePassAction) -> Result<()> {
+                    check_cipher_text_response(self, &action.to_readable())
                 }
             }
         )*
