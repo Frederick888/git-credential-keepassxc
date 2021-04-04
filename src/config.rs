@@ -170,7 +170,7 @@ impl Config {
     }
 
     pub fn decrypt_databases(&mut self) -> Result<usize> {
-        // TODO: check if Vec::drain_filter() can help simplifies this when it's stabilised
+        // TODO: check if Vec::drain_filter() can help simplify this when it's stabilised
         let mut decrypted_database_indices = Vec::new();
         for (idx, encrypted_database) in self.encrypted_databases.iter().enumerate() {
             if let Ok(json) =
@@ -265,7 +265,7 @@ impl Config {
     }
 
     pub fn decrypt_callers(&mut self) -> Result<usize> {
-        // TODO: check if Vec::drain_filter() can help simplifies this when it's stabilised
+        // TODO: check if Vec::drain_filter() can help simplify this when it's stabilised
         let mut decrypted_caller_indices = Vec::new();
         for (idx, encrypted_caller) in self.encrypted_callers.iter().enumerate() {
             if let Ok(json) = self.base64_decrypt(&encrypted_caller.data, &encrypted_caller.nonce) {
