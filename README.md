@@ -67,7 +67,15 @@ For more options, run `git-credential-keepassxc -h` to show the help message.
 
 ```sh
 # don't forget to add yourself first
-$ git-credential-keepassxc caller add --uid "$(id -u)" --gid "$(id -g)" "$(readlink -f "$0")"
+$ git-credential-keepassxc caller me
+Gonna save current caller to allowed callers list:
+{
+  "path": "/usr/bin/zsh",
+  "uid": 1000,
+  "gid": 1000,
+  "canonicalize": false
+}
+Press Enter to continue...
 # then allow Git to access KeePassXC when sending emails via SMTP
 $ git-credential-keepassxc caller add --uid "$(id -u)" --gid "$(id -g)" "$(command -v git)"
 # also add other Git executables if you want to e.g. clone via HTTPS
