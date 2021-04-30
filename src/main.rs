@@ -386,7 +386,8 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
                 _ => unreachable!("Unreachable code when processing caller subcommand"),
             };
             let encryption = subcommand
-                .subcommand_matches("add")
+                .subcommand()
+                .1
                 .and_then(|m| m.value_of("encrypt"));
             if let Some(encryption) = encryption {
                 // this will error if an existing encryption profile has already been configured for the
