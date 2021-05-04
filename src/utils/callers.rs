@@ -21,9 +21,11 @@ impl CurrentCaller {
             get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;
         info!("PID: {}", pid);
         let system = System::new_all();
+        debug!("Collecting process info");
         let proc = system
             .get_process(pid)
             .ok_or_else(|| anyhow!("Failed to retrieve information of current process"))?;
+        debug!("Collecting parent process info");
         let ppid = proc
             .parent()
             .ok_or_else(|| anyhow!("Failed to retrieve parent PID"))?;
