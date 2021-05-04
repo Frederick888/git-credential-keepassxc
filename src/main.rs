@@ -531,10 +531,10 @@ fn get_logins<T: AsRef<Path>>(
     let (client_id, _, _) = start_session()?;
 
     let login_entries = get_logins_for(&config, &client_id, &url, unlock_options)?;
-    info!("KeePassXC return {} login(s)", login_entries.len());
+    info!("KeePassXC returned {} login(s)", login_entries.len());
     let (kph_false, mut login_entries) = filter_kph_logins(&login_entries);
     if kph_false > 0 {
-        info!("{} login(s) were labeled as KPH: git == false", kph_false);
+        info!("{} login(s) were labelled as KPH: git == false", kph_false);
     }
     if login_entries.is_empty() {
         return Err(anyhow!("No matching logins found"));
@@ -611,7 +611,7 @@ fn store_login<T: AsRef<Path>>(
         get_logins_for(&config, &client_id, &url, unlock_options).and_then(|entries| {
             let (kph_false, entries) = filter_kph_logins(&entries);
             if kph_false > 0 {
-                info!("{} login(s) were labeled as KPH: git == false", kph_false);
+                info!("{} login(s) were labelled as KPH: git == false", kph_false);
             }
             let username = git_req.username.as_ref().unwrap();
             let entries: Vec<_> = entries
