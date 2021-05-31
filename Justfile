@@ -45,3 +45,14 @@ coverage:
     elif command -v open 2>&1 >/dev/null; then \
         open ./target/debug/coverage/index.html; \
     fi
+
+update:
+    UPDATED_CRATES="$(cargo update 2>&1 | sed -n 's/^\s*Updating \(.*->.*\)/\1/p')"; \
+        if [[ -z "$UPDATED_CRATES" ]]; then \
+            printf 'Already update to update\n'; \
+        else \
+            git add Cargo.lock; \
+            printf 'Upgrade dependencies\n\n%s\n' "$UPDATED_CRATES" | git commit -F -; \
+        fi
+    @printf 'Running cargo outdated\n'
+    cargo outdated --features all -R
