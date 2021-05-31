@@ -51,6 +51,7 @@ update:
         if [[ -z "$UPDATED_CRATES" ]]; then \
             printf 'Already up to date\n'; \
         else \
+            just test || exit 1; \
             git add Cargo.lock; \
             printf 'Upgrade dependencies\n\n%s\n' "$UPDATED_CRATES" | git commit -F -; \
         fi
