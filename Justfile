@@ -49,7 +49,7 @@ coverage:
 update:
     UPDATED_CRATES="$(cargo update 2>&1 | sed -n 's/^\s*Updating \(.*->.*\)/\1/p')"; \
         if [[ -z "$UPDATED_CRATES" ]]; then \
-            printf 'Already update to update\n'; \
+            printf 'Already up to date\n'; \
         else \
             git add Cargo.lock; \
             printf 'Upgrade dependencies\n\n%s\n' "$UPDATED_CRATES" | git commit -F -; \
