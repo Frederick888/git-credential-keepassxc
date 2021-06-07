@@ -28,6 +28,9 @@ subcommands:
         - totp:
             long: totp
             help: Try getting TOTP
+        - advanced-fields:
+            long: advanced-fields
+            help: Print advanced fields
   - totp:
       about: Get TOTP
   - store:

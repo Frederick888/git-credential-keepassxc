@@ -1,5 +1,10 @@
+#[allow(unused_imports)]
+use crate::{debug, error, info, warn};
+use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
+
+const KPXC_ADVANCED_FIELD_PREFIX: &str = "KPH: ";
 
 #[derive(Debug)]
 pub struct GitMessageParsingError {
@@ -26,6 +31,7 @@ macro_rules! message_from_to_string {
         #[derive(Default, Debug)]
         $vis struct $name {
             $($field_vis $field_name: $field_type,)*
+            pub string_fields: Option<HashMap<String, String>>,
         }
 
         impl ToString for $name {
@@ -39,6 +45,14 @@ macro_rules! message_from_to_string {
                         msg.push('\n');
                     }
                 )*
+                if let Some(ref string_fields) = self.string_fields {
+                    for (key, value) in string_fields {
+                        msg.push_str(key);
+                        msg.push('=');
+                        msg.push_str(value);
+                        msg.push('\n');
+                    }
+                }
                 msg.push('\n');
                 msg
             }
@@ -88,6 +102,27 @@ message_from_to_string!(
         pub totp: Option<String>,
     }
 );
+
+impl GitCredentialMessage {
+    pub fn set_string_fields(&mut self, login_entry_fields: &[HashMap<String, String>]) {
+        let mut result = HashMap::new();
+        login_entry_fields.iter().for_each(|login_entry_field| {
+            for (key, value) in login_entry_field {
+                if key.len() < KPXC_ADVANCED_FIELD_PREFIX.len()
+                    || &key[..KPXC_ADVANCED_FIELD_PREFIX.len()] != KPXC_ADVANCED_FIELD_PREFIX
+                {
+                    warn!("Ignored advanced field {} due to malformed key", key);
+                } else {
+                    result.insert(
+                        key[KPXC_ADVANCED_FIELD_PREFIX.len()..].to_string(),
+                        value.clone(),
+                    );
+                }
+            }
+        });
+        self.string_fields = Some(result);
+    }
+}
 
 #[cfg(test)]
 mod tests {

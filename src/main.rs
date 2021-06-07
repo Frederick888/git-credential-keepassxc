@@ -497,6 +497,7 @@ fn get_logins<T: AsRef<Path>>(
     config_path: T,
     unlock_options: &Option<UnlockOptions>,
     get_mode: &Option<GetMode>,
+    advanced_fields: bool,
 ) -> Result<()> {
     let config = Config::read_from(config_path.as_ref())?;
     let _current_caller = verify_caller(&config)?;
@@ -582,6 +583,12 @@ fn get_logins<T: AsRef<Path>>(
     if get_mode.is_none() || get_mode.as_ref().unwrap() != &GetMode::TotpOnly {
         git_resp.username = Some(login.login.clone());
         git_resp.password = Some(login.password.clone());
+    }
+
+    if advanced_fields {
+        if let Some(ref login_entry_fields) = login.string_fields {
+            git_resp.set_string_fields(login_entry_fields);
+        }
     }
 
     io::stdout().write_all(git_resp.to_string().as_bytes())?;
@@ -848,13 +855,20 @@ fn real_main() -> Result<()> {
         "totp" => Some(GetMode::TotpOnly),
         _ => None,
     };
+    let advanced_fields = match subcommand {
+        "get" => args
+            .subcommand_matches("get")
+            .map(|m| m.is_present("advanced-fields"))
+            .unwrap(),
+        _ => false,
+    };
     match subcommand {
         "configure" => configure(config_path, &args),
         "edit" => edit(config_path),
         "encrypt" => encrypt(config_path, &args),
         "decrypt" => decrypt(config_path),
         "caller" => caller(config_path, &args),
-        "get" | "totp" => get_logins(config_path, &unlock_options, &get_mode),
+        "get" | "totp" => get_logins(config_path, &unlock_options, &get_mode, advanced_fields),
         "store" => store_login(config_path, &unlock_options),
         "erase" => erase_login(),
         "lock" => lock_database(config_path),
