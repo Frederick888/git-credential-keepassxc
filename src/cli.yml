@@ -31,8 +31,15 @@ subcommands:
         - advanced-fields:
             long: advanced-fields
             help: Print advanced fields
+        - json:
+            long: json
+            help: Print JSON
   - totp:
       about: Get TOTP
+      args:
+        - json:
+            long: json
+            help: Print JSON
   - store:
       about: Store credential (used by Git)
   - erase:

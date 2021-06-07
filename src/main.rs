@@ -498,6 +498,7 @@ fn get_logins<T: AsRef<Path>>(
     unlock_options: &Option<UnlockOptions>,
     get_mode: &Option<GetMode>,
     advanced_fields: bool,
+    json: bool,
 ) -> Result<()> {
     let config = Config::read_from(config_path.as_ref())?;
     let _current_caller = verify_caller(&config)?;
@@ -593,7 +594,11 @@ fn get_logins<T: AsRef<Path>>(
         }
     }
 
-    io::stdout().write_all(git_resp.to_string().as_bytes())?;
+    if json {
+        io::stdout().write_all(serde_json::to_string(&git_resp)?.as_bytes())?;
+    } else {
+        io::stdout().write_all(git_resp.to_string().as_bytes())?;
+    }
 
     Ok(())
 }
@@ -864,13 +869,26 @@ fn real_main() -> Result<()> {
             .unwrap(),
         _ => false,
     };
+    let json = match subcommand {
+        "get" | "totp" => args
+            .subcommand_matches(subcommand)
+            .map(|m| m.is_present("json"))
+            .unwrap(),
+        _ => false,
+    };
     match subcommand {
         "configure" => configure(config_path, &args),
         "edit" => edit(config_path),
         "encrypt" => encrypt(config_path, &args),
         "decrypt" => decrypt(config_path),
         "caller" => caller(config_path, &args),
-        "get" | "totp" => get_logins(config_path, &unlock_options, &get_mode, advanced_fields),
+        "get" | "totp" => get_logins(
+            config_path,
+            &unlock_options,
+            &get_mode,
+            advanced_fields,
+            json,
+        ),
         "store" => store_login(config_path, &unlock_options),
         "erase" => erase_login(),
         "lock" => lock_database(config_path),

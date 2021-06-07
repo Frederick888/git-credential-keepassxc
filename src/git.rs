@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use crate::{debug, error, info, warn};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
@@ -28,9 +29,13 @@ macro_rules! message_from_to_string {
     ($vis:vis struct $name:ident {
         $($field_vis:vis $field_name:ident: $field_type:ty,)*
     }) => {
-        #[derive(Default, Debug)]
+        #[derive(Default, Serialize, Debug)]
         $vis struct $name {
-            $($field_vis $field_name: $field_type,)*
+            $(
+                #[serde(skip_serializing_if = "Option::is_none")]
+                $field_vis $field_name: $field_type,
+            )*
+            #[serde(skip_serializing_if = "Option::is_none")]
             pub string_fields: Option<HashMap<String, String>>,
         }
 
