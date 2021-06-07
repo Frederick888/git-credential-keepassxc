@@ -587,7 +587,9 @@ fn get_logins<T: AsRef<Path>>(
 
     if advanced_fields {
         if let Some(ref login_entry_fields) = login.string_fields {
-            git_resp.set_string_fields(login_entry_fields);
+            if !login_entry_fields.is_empty() {
+                git_resp.set_string_fields(login_entry_fields);
+            }
         }
     }
 
