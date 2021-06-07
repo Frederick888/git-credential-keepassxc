@@ -1,5 +1,5 @@
 name: git-credential-keepassxc
-about: Middleware that allows Git to use KeePassXC as credential store
+about: Helper that allows Git and shell scripts to use KeePassXC as credential store
 args:
   - config:
       long: config
