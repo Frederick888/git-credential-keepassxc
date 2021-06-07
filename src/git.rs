@@ -152,4 +152,21 @@ mod tests {
         assert_eq!(message.username.as_ref().unwrap().as_str(), "foo");
         assert_eq!(string + "\n", message.to_string());
     }
+
+    #[test]
+    fn test_02_advanced_fields() {
+        let string1 = "username=foo\nurl=http://example.com\n".to_owned();
+        let string2 = "advanced_field1=foo\n".to_owned();
+        let mut message = GitCredentialMessage::from_str(string1.as_str()).unwrap();
+        let advanced_fields: Vec<HashMap<String, String>> = [("KPH: advanced_field1", "foo")]
+            .iter()
+            .map(|(key, value)| {
+                let mut advanced_field = HashMap::new();
+                advanced_field.insert(key.to_string(), value.to_string());
+                advanced_field
+            })
+            .collect();
+        message.set_string_fields(&advanced_fields);
+        assert_eq!(string1 + &string2 + "\n", message.to_string());
+    }
 }
