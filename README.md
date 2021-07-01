@@ -1,6 +1,8 @@
 # `git-credential-keepassxc`
 
-[![GitHub Actions Status](https://github.com/Frederick888/git-credential-keepassxc/workflows/Build%20and%20Test/badge.svg)](https://github.com/Frederick888/git-credential-keepassxc/actions) [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) [![crates.io version](https://meritbadge.herokuapp.com/git-credential-keepassxc)](https://crates.io/crates/git-credential-keepassxc)
+[![GitHub Actions Status](https://github.com/Frederick888/git-credential-keepassxc/workflows/Build%20and%20Test/badge.svg)](https://github.com/Frederick888/git-credential-keepassxc/actions)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![crates.io version](https://img.shields.io/crates/v/git-credential-keepassxc?color=greenyellow&cacheSeconds=1800)](https://crates.io/crates/git-credential-keepassxc)
 
 `git-credential-keepassxc` is a [Git credential](https://git-scm.com/docs/gitcredentials) helper that allows Git (and shell scripts) to get/store logins from/to [KeePassXC](https://keepassxc.org/).
 
