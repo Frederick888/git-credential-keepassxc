@@ -468,8 +468,11 @@ fn get_totp_for<T: AsRef<str>>(client_id: T, uuid: T) -> Result<String> {
     }
 }
 
-fn filter_kph_logins(login_entries: &[LoginEntry]) -> (u32, Vec<&LoginEntry>) {
+fn filter_kph_logins(login_entries: &[LoginEntry], skip: bool) -> (u32, Vec<&LoginEntry>) {
     let mut kph_false = 0u32;
+    if skip {
+        return (kph_false, login_entries.iter().collect());
+    }
     let login_entries: Vec<&LoginEntry> = login_entries
         .iter()
         .filter(|entry| {
@@ -497,6 +500,7 @@ fn get_logins<T: AsRef<Path>>(
     config_path: T,
     unlock_options: &Option<UnlockOptions>,
     get_mode: &Option<GetMode>,
+    no_filter: bool,
     advanced_fields: bool,
     json: bool,
 ) -> Result<()> {
@@ -534,7 +538,7 @@ fn get_logins<T: AsRef<Path>>(
 
     let login_entries = get_logins_for(&config, &client_id, &url, unlock_options)?;
     info!("KeePassXC returned {} login(s)", login_entries.len());
-    let (kph_false, mut login_entries) = filter_kph_logins(&login_entries);
+    let (kph_false, mut login_entries) = filter_kph_logins(&login_entries, no_filter);
     if kph_false > 0 {
         info!("{} login(s) were labelled as KPH: git == false", kph_false);
     }
@@ -606,6 +610,7 @@ fn get_logins<T: AsRef<Path>>(
 fn store_login<T: AsRef<Path>>(
     config_path: T,
     unlock_options: &Option<UnlockOptions>,
+    no_filter: bool,
 ) -> Result<()> {
     let config = Config::read_from(config_path.as_ref())?;
     verify_caller(&config)?;
@@ -623,7 +628,7 @@ fn store_login<T: AsRef<Path>>(
 
     let login_entries =
         get_logins_for(&config, &client_id, &url, unlock_options).and_then(|entries| {
-            let (kph_false, entries) = filter_kph_logins(&entries);
+            let (kph_false, entries) = filter_kph_logins(&entries, no_filter);
             if kph_false > 0 {
                 info!("{} login(s) were labelled as KPH: git == false", kph_false);
             }
@@ -862,6 +867,13 @@ fn real_main() -> Result<()> {
         "totp" => Some(GetMode::TotpOnly),
         _ => None,
     };
+    let no_filter = match subcommand {
+        "get" | "store" => args
+            .subcommand_matches(subcommand)
+            .map(|m| m.is_present("no-filter"))
+            .unwrap(),
+        _ => false,
+    };
     let advanced_fields = match subcommand {
         "get" => args
             .subcommand_matches("get")
@@ -886,10 +898,11 @@ fn real_main() -> Result<()> {
             config_path,
             &unlock_options,
             &get_mode,
+            no_filter,
             advanced_fields,
             json,
         ),
-        "store" => store_login(config_path, &unlock_options),
+        "store" => store_login(config_path, &unlock_options, no_filter),
         "erase" => erase_login(),
         "lock" => lock_database(config_path),
         _ => Err(anyhow!(anyhow!("Unrecognised subcommand"))),

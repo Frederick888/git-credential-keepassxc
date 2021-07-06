@@ -28,6 +28,9 @@ subcommands:
         - totp:
             long: totp
             help: Try getting TOTP
+        - no-filter:
+            long: no-filter
+            help: "Do not filter out entries with advanced field 'KPH: git' set to false"
         - advanced-fields:
             long: advanced-fields
             help: Print advanced fields
@@ -42,6 +45,10 @@ subcommands:
             help: Print JSON
   - store:
       about: Store credential (used by Git)
+      args:
+        - no-filter:
+            long: no-filter
+            help: "Do not filter out entries with advanced field 'KPH: git' set to false"
   - erase:
       about: "[Not implemented] Erase credential (used by Git)"
   - lock:
