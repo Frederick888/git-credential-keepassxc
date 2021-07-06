@@ -23,7 +23,7 @@ impl CurrentCaller {
         let system = System::new_with_specifics(RefreshKind::new().with_processes());
         debug!("Collecting process info");
         let proc = system
-            .get_process(pid)
+            .process(pid)
             .ok_or_else(|| anyhow!("Failed to retrieve information of current process"))?;
         debug!("Collecting parent process info");
         let ppid = proc
@@ -31,7 +31,7 @@ impl CurrentCaller {
             .ok_or_else(|| anyhow!("Failed to retrieve parent PID"))?;
         info!("PPID: {}", ppid);
         let pproc = system
-            .get_process(ppid)
+            .process(ppid)
             .ok_or_else(|| anyhow!("Failed to retrieve parent process information"))?;
         let ppath = pproc.exe();
         info!("Parent process path: {}", ppath.to_string_lossy());
