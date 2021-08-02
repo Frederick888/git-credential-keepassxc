@@ -12,6 +12,7 @@ use mockall::mock;
 use named_pipe::PipeClient;
 use once_cell::unsync::OnceCell;
 use std::cell::RefCell;
+use std::env;
 use std::fmt;
 use std::io::{Read, Write};
 #[cfg(unix)]
@@ -24,6 +25,7 @@ use std::str;
 const NAMED_PIPE_CONNECT_TIMEOUT_MS: u32 = 100;
 const KEEPASS_SOCKET_NAME: &str = "org.keepassxc.KeePassXC.BrowserServer";
 const KEEPASS_SOCKET_NAME_LEGACY: &str = "kpxc_server";
+const KEEPASS_SOCKET_ENVIRONMENT_VARIABLE: &str = "KEEPASSXC_BROWSER_SOCKET_PATH";
 
 #[macro_export]
 macro_rules! error {
@@ -58,6 +60,9 @@ thread_local!(pub static SOCKET_PATH: OnceCell<PathBuf> = OnceCell::new());
 pub fn get_socket_path() -> Result<PathBuf> {
     let socket_path = SOCKET_PATH.with(|s| -> Result<_> {
         Ok(s.get_or_try_init(|| -> Result<_> {
+            if let Ok(env_socket_path) = env::var(KEEPASS_SOCKET_ENVIRONMENT_VARIABLE) {
+                return Ok(PathBuf::from(env_socket_path));
+            }
             let base_dirs = directories_next::BaseDirs::new()
                 .ok_or_else(|| anyhow!("Failed to initialise base_dirs"))?;
             let get_socket_path_with_name = |name: &str| -> Result<PathBuf> {

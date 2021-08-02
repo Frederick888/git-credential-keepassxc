@@ -9,7 +9,7 @@ args:
   - socket:
       long: socket
       short: s
-      help: Specify KeePassXC socket path
+      help: "Specify KeePassXC socket path (environment variable: KEEPASSXC_BROWSER_SOCKET_PATH)"
       takes_value: true
   - unlock:
       long: unlock
