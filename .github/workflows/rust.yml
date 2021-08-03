@@ -65,6 +65,7 @@ jobs:
           toolchain: ${{ matrix.rust_toolchain }}
           default: true
           override: true
+          components: rustfmt
 
       - name: Cache
         uses: actions/cache@v2
@@ -78,6 +79,12 @@ jobs:
             build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-
             build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-
             build-${{ runner.os }}-
+
+      - name: rustfmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: -- --check
 
       - name: "Build (No Features)"
         uses: actions-rs/cargo@v1
