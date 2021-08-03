@@ -1,4 +1,4 @@
-use super::messages::GenericResponseWrapper;
+use super::messages::{GenericResponseWrapper, KeePassErrorCode};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
@@ -10,6 +10,9 @@ pub struct KeePassError {
 
 impl KeePassError {
     pub fn is_database_locked(&self) -> bool {
+        if let Some(KeePassErrorCode::DatabaseNotOpened) = &self.response.error_code {
+            return true;
+        }
         if let Some(error_message) = &self.response.error {
             error_message.contains("not opened")
         } else {
