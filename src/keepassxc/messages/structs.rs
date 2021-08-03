@@ -108,8 +108,8 @@ fn check_cipher_text_response<T: CipherTextResponse>(response: T, action: &str) 
                 action,
                 response
                     .get_error()
-                    .clone()
-                    .unwrap_or_else(|| "N/A".to_owned()),
+                    .as_ref()
+                    .map_or_else(|| "N/A", |e| e.as_str()),
                 response
                     .get_error_code()
                     .as_ref()
@@ -194,7 +194,7 @@ impl GenericResponseWrapper {
         format!(
             "Request {} failed, {} (code: {})",
             self.action.to_string(),
-            self.error.clone().unwrap_or_else(|| "N/A".to_owned()),
+            self.error.as_ref().map_or_else(|| "N/A", |e| e.as_str()),
             self.error_code
                 .as_ref()
                 .map_or_else(|| "N/A", |e| e.as_ref())

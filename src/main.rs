@@ -72,9 +72,9 @@ fn read_git_request() -> Result<(GitCredentialMessage, String)> {
             }
             format!(
                 "{}://{}/{}",
-                git_req.protocol.clone().unwrap(),
-                git_req.host.clone().unwrap(),
-                git_req.path.clone().unwrap_or_else(|| "".to_owned())
+                git_req.protocol.as_deref().unwrap(),
+                git_req.host.as_deref().unwrap(),
+                git_req.path.as_deref().unwrap_or_else(|| "")
             )
         }
     };
@@ -107,11 +107,7 @@ fn associated_databases<T: AsRef<str>>(
                     }
                 };
                 if let Ok(ref taso_resp) = taso_resp {
-                    success = taso_resp
-                        .success
-                        .clone()
-                        .unwrap_or_else(|| KeePassBoolean(false))
-                        .into();
+                    success = taso_resp.success.as_ref().map_or(false, |s| *s.as_ref());
                 }
                 if taso_resp.is_err() || !success {
                     warn!(
@@ -571,14 +567,14 @@ fn get_logins<T: AsRef<Path>>(
     match get_mode {
         Some(mode) => match mode {
             GetMode::PasswordAndTotp => {
-                if let Ok(totp) = get_totp_for(client_id, login.uuid.clone()) {
+                if let Ok(totp) = get_totp_for(&client_id, &login.uuid) {
                     git_resp.totp = Some(totp);
                 } else {
                     error!("Failed to get TOTP");
                 }
             }
             GetMode::TotpOnly => {
-                git_resp.totp = Some(get_totp_for(client_id, login.uuid.clone())?);
+                git_resp.totp = Some(get_totp_for(&client_id, &login.uuid)?);
             }
             _ => {}
         },
