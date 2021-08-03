@@ -57,3 +57,5 @@ update:
         fi
     @printf 'Running cargo outdated\n'
     cargo outdated --features all -R
+
+# vim: set filetype=just :
