@@ -57,7 +57,7 @@ jobs:
           toolchain: stable
           default: true
           override: true
-          components: rustfmt
+          components: rustfmt, clippy
 
       - name: Cache
         uses: actions/cache@v2
@@ -77,6 +77,16 @@ jobs:
         with:
           command: fmt
           args: -- --check
+      - name: "Clippy (No Features)"
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -D warnings
+      - name: "Clippy (All Features)"
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --features=all -- -D warnings
 
       - name: "Test (No strict-caller)"
         uses: actions-rs/cargo@v1
