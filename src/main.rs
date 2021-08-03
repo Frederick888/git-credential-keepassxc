@@ -31,9 +31,9 @@ fn exchange_keys<T: AsRef<str>>(client_id: T, session_pubkey: &PublicKey) -> Res
     // exchange public keys
     let cpr_req = ChangePublicKeysRequest::new(client_id.as_ref(), session_pubkey);
     let cpr_resp = cpr_req.send()?;
-    Ok(cpr_resp
+    cpr_resp
         .get_public_key()
-        .ok_or_else(|| anyhow!("Failed to retrieve host public key"))?)
+        .ok_or_else(|| anyhow!("Failed to retrieve host public key"))
 }
 
 fn start_session() -> Result<(String, SecretKey, PublicKey)> {
@@ -74,7 +74,7 @@ fn read_git_request() -> Result<(GitCredentialMessage, String)> {
                 "{}://{}/{}",
                 git_req.protocol.as_deref().unwrap(),
                 git_req.host.as_deref().unwrap(),
-                git_req.path.as_deref().unwrap_or_else(|| "")
+                git_req.path.as_deref().unwrap_or("")
             )
         }
     };
@@ -89,7 +89,7 @@ fn associated_databases<T: AsRef<str>>(
     let databases: Vec<_> = config
         .get_databases()?
         .iter()
-        .filter(|ref db| {
+        .filter(|db| {
             let mut remain_retries = unlock_options.as_ref().map_or_else(|| 0, |v| v.max_retries);
             let mut success = false;
             loop {
@@ -413,11 +413,10 @@ fn verify_caller(config: &Config) -> Result<Option<CurrentCaller>> {
     }
     let current_caller = CurrentCaller::new()?;
     let callers = config.get_callers()?;
-    let matching_callers: Vec<_> = callers
+    let matching_callers = callers
         .iter()
-        .filter(|caller| current_caller.matches(caller))
-        .collect();
-    if matching_callers.is_empty() {
+        .filter(|caller| current_caller.matches(caller));
+    if matching_callers.count() == 0 {
         if config.count_callers() == 0 && cfg!(feature = "strict-caller") {
             warn!("No caller profiles defined. You must configure callers before databases when strict-caller feature is enabled");
         }
@@ -564,8 +563,8 @@ fn get_logins<T: AsRef<Path>>(
     let mut git_resp = git_req;
 
     // entry found handle TOTP now
-    match get_mode {
-        Some(mode) => match mode {
+    if let Some(mode) = get_mode {
+        match mode {
             GetMode::PasswordAndTotp => {
                 if let Ok(totp) = get_totp_for(&client_id, &login.uuid) {
                     git_resp.totp = Some(totp);
@@ -577,8 +576,7 @@ fn get_logins<T: AsRef<Path>>(
                 git_resp.totp = Some(get_totp_for(&client_id, &login.uuid)?);
             }
             _ => {}
-        },
-        _ => {}
+        }
     }
 
     if get_mode.is_none() || get_mode.as_ref().unwrap() != &GetMode::TotpOnly {
@@ -732,7 +730,7 @@ fn lock_database<T: AsRef<Path>>(config_path: T) -> Result<()> {
 }
 
 fn edit<T: AsRef<Path>>(config_path: T) -> Result<()> {
-    const KNOWN_EDITORS: &'static [&'static str] = &["nvim", "vim", "kak", "vi", "nano", "ex"];
+    const KNOWN_EDITORS: &[&str] = &["nvim", "vim", "kak", "vi", "nano", "ex"];
     let find_editor = || -> Option<String> {
         if let Ok(editor) = env::var("VISUAL") {
             debug!("Found editor {} via VISUAL environment variable", editor);

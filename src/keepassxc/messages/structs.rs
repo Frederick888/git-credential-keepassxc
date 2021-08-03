@@ -81,7 +81,8 @@ where
             Err(KeePassError {
                 message: response_wrapper.error_message(),
                 response: response_wrapper,
-            })?
+            }
+            .into())
         }
     }
 

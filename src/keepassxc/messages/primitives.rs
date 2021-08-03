@@ -27,9 +27,9 @@ impl<'de> Deserialize<'de> for KeePassBoolean {
     }
 }
 
-impl Into<bool> for KeePassBoolean {
-    fn into(self) -> bool {
-        self.0
+impl From<KeePassBoolean> for bool {
+    fn from(v: KeePassBoolean) -> Self {
+        v.0
     }
 }
 
