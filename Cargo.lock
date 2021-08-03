@@ -734,6 +734,7 @@ dependencies = [
  "mockall",
  "named_pipe",
  "notify-rust",
+ "num_enum",
  "once_cell",
  "prctl",
  "rand 0.8.4",
@@ -742,9 +743,19 @@ dependencies = [
  "sha-1",
  "slog",
  "slog-term",
+ "strum 0.21.0",
  "sysinfo",
  "which",
  "yubico_manager",
+]
+
+[[package]]
+name = "heck"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d621efb26863f0e9924c6ac577e8275e5e6b77455db64ffa6c65c904e9e132c"
+dependencies = [
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -1010,6 +1021,28 @@ checksum = "05499f3756671c15885fee9034446956fff3f243d6077b91e5767df161f766b3"
 dependencies = [
  "hermit-abi",
  "libc",
+]
+
+[[package]]
+name = "num_enum"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee2c8fd66061a707503d515639b8af10fd3807a5b5ee6959f7ff1bd303634bd5"
+dependencies = [
+ "derivative",
+ "num_enum_derive",
+]
+
+[[package]]
+name = "num_enum_derive"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "474fd1d096da3ad17084694eebed40ba09c4a36c5255cd772bd8b98859cc562e"
+dependencies = [
+ "proc-macro-crate 1.0.0",
+ "proc-macro2",
+ "quote 1.0.9",
+ "syn 1.0.74",
 ]
 
 [[package]]
@@ -1579,6 +1612,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ca6e4730f517e041e547ffe23d29daab8de6b73af4b6ae2a002108169f5e7da"
 
 [[package]]
+name = "strum"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aaf86bbcfd1fa9670b7a129f64fc0c9fcbbfe4f1bc4210e9e98fe71ffc12cde2"
+dependencies = [
+ "strum_macros 0.21.1",
+]
+
+[[package]]
 name = "strum_macros"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1586,6 +1628,18 @@ checksum = "3384590878eb0cab3b128e844412e2d010821e7e091211b9d87324173ada7db8"
 dependencies = [
  "quote 0.3.15",
  "syn 0.11.11",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.21.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d06aaeeee809dbc59eb4556183dd927df67db1540de5be8d3ec0b6636358a5ec"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote 1.0.9",
+ "syn 1.0.74",
 ]
 
 [[package]]
@@ -1745,6 +1799,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "879f6906492a7cd215bfa4cf595b600146ccfac0c79bcbd1f3000162af5e8b06"
 
 [[package]]
+name = "unicode-segmentation"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8895849a949e7845e06bd6dc1aa51731a103c42707010a5b591c0038fb73385b"
+
+[[package]]
 name = "unicode-width"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1871,8 +1931,8 @@ version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57790eb281688a4682dab44df2a1ba8b78373233bd71cb291c3e75fecb1a01c4"
 dependencies = [
- "strum",
- "strum_macros",
+ "strum 0.8.0",
+ "strum_macros 0.8.0",
  "winapi",
  "winrt",
  "xml-rs",

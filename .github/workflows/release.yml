@@ -57,6 +57,7 @@ jobs:
           toolchain: stable
           default: true
           override: true
+          components: rustfmt, clippy
 
       - name: Cache
         uses: actions/cache@v2
@@ -70,6 +71,22 @@ jobs:
             build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-
             build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-
             build-${{ runner.os }}-
+
+      - name: rustfmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: -- --check
+      - name: "Clippy (No Features)"
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -D warnings
+      - name: "Clippy (All Features)"
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --features=all -- -D warnings
 
       - name: "Test (No strict-caller)"
         uses: actions-rs/cargo@v1

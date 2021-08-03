@@ -151,7 +151,7 @@ impl std::error::Error for CryptionError {}
 #[cfg(unix)]
 fn get_stream() -> Result<Rc<RefCell<UnixStream>>> {
     thread_local!(static STREAM: OnceCell<Rc<RefCell<UnixStream>>> = OnceCell::new());
-    Ok(STREAM.with(|s| -> Result<_> {
+    STREAM.with(|s| -> Result<_> {
         Ok(s.get_or_try_init(|| -> Result<_> {
             let path = get_socket_path()?;
             Ok(Rc::new(RefCell::new(
@@ -164,13 +164,13 @@ fn get_stream() -> Result<Rc<RefCell<UnixStream>>> {
             )))
         })?
         .clone())
-    })?)
+    })
 }
 
 #[cfg(windows)]
 fn get_stream() -> Result<Rc<RefCell<PipeClient>>> {
     thread_local!(static STREAM: OnceCell<Rc<RefCell<PipeClient>>> = OnceCell::new());
-    Ok(STREAM.with(|s| -> Result<_> {
+    STREAM.with(|s| -> Result<_> {
         Ok(s.get_or_try_init(|| -> Result<_> {
             let path = get_socket_path()?;
             Ok(Rc::new(RefCell::new(
@@ -180,7 +180,7 @@ fn get_stream() -> Result<Rc<RefCell<PipeClient>>> {
             )))
         })?
         .clone())
-    })?)
+    })
 }
 
 pub trait MessagingUtilsTrait {
@@ -346,7 +346,7 @@ pub fn get_client_box(
     client_secret_key: Option<&SecretKey>,
 ) -> Result<Rc<SalsaBox>> {
     thread_local!(static CLIENT_BOX: OnceCell<Rc<SalsaBox>> = OnceCell::new());
-    Ok(CLIENT_BOX.with(|cb| -> Result<_> {
+    CLIENT_BOX.with(|cb| -> Result<_> {
         Ok(cb.get_or_try_init(|| -> Result<_> {
             let client_secret_key = client_secret_key.ok_or_else(||
                 anyhow!("get_client_box() is called before client secret key is available, this shouldn't happen")
@@ -356,7 +356,7 @@ pub fn get_client_box(
             )?;
             Ok(Rc::new(SalsaBox::new(host_public_key, client_secret_key)))
         })?.clone())
-    })?)
+    })
 }
 
 type NaClNonce = generic_array::GenericArray<u8, generic_array::typenum::U24>;
@@ -373,7 +373,7 @@ pub fn to_encrypted_json<M: serde::Serialize>(request: &M, nonce: &NaClNonce) ->
     debug!("ENC : {}", json);
     let client_box = get_client_box(None, None)?;
     let encrypted = client_box
-        .encrypt(&nonce, json.as_bytes())
+        .encrypt(nonce, json.as_bytes())
         .map_err(|_| CryptionError(true))?;
     let encrypted = base64::encode(&encrypted);
     Ok(encrypted)

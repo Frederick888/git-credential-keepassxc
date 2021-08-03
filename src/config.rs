@@ -107,7 +107,7 @@ impl Config {
                 )
             })?;
 
-        file.write_all(&json.as_bytes()).with_context(|| {
+        file.write_all(json.as_bytes()).with_context(|| {
             format!(
                 "Failed to write configuration to {}",
                 config_path.as_ref().to_string_lossy()
@@ -196,7 +196,7 @@ impl Config {
 
     pub fn get_callers(&self) -> Result<Vec<Caller>> {
         if self.count_encrypted_callers() > 0 {
-            if self.callers.len() > 0 {
+            if !self.callers.is_empty() {
                 warn!(
                     "{} unencrypted caller profile(s) ignored",
                     self.callers.len()
@@ -324,7 +324,7 @@ impl Config {
         let aead = Aes256Gcm::new(key);
 
         let encrypted = aead
-            .encrypt(&nonce, data)
+            .encrypt(nonce, data)
             .map_err(|_| anyhow!("Failed to encrypt database key"))?;
         Ok(base64::encode(&encrypted))
     }
@@ -422,7 +422,7 @@ impl Config {
                             )?
                         };
                         self.encryptions.push(profile);
-                        return Ok(());
+                        Ok(())
                     }
                 }
             }
@@ -656,7 +656,8 @@ impl Encryption {
                 let mut yubikey = YubiKey::new()?;
                 #[cfg(test)]
                 let mut yubikey = MockYubiKeyTrait::new_mock();
-                let mut hmac_response = yubikey.challenge_response_hmac(&challenge, slot)?;
+                let mut hmac_response =
+                    yubikey.challenge_response_hmac(challenge.as_str(), slot)?;
                 debug_assert_eq!(hmac_response.len(), HMAC_SHA1_RESPONSE_LENGTH);
                 hmac_response.extend_from_slice(&[0u8; AES_KEY_LENGTH - HMAC_SHA1_RESPONSE_LENGTH]);
                 debug_assert_eq!(hmac_response.len(), AES_KEY_LENGTH);
@@ -729,7 +730,7 @@ trait YubiKeyTrait {
     fn read_serial_number(&mut self) -> Result<u32, YubicoError>;
     fn challenge_response_hmac(
         &mut self,
-        challenge: &String,
+        challenge: &str,
         slot: yubico_config::Slot,
     ) -> Result<Vec<u8>, YubicoError>;
 }
@@ -790,7 +791,7 @@ impl YubiKeyTrait for YubiKey {
 
     fn challenge_response_hmac(
         &mut self,
-        challenge: &String,
+        challenge: &str,
         slot: yubico_config::Slot,
     ) -> Result<Vec<u8>, YubicoError> {
         debug!("Using YubiKey {:?}", slot);
@@ -822,7 +823,7 @@ impl YubiKeyTrait for YubiKey {
             .challenge_response_hmac(challenge.as_bytes(), config)?;
         debug!("HMAC response: {:?}", &*hmac_result);
         info!("HMAC response received");
-        Ok((*hmac_result).iter().cloned().collect())
+        Ok((*hmac_result).to_vec())
     }
 }
 

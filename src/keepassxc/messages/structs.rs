@@ -1,5 +1,5 @@
-use super::super::errors::KeePassError;
 use super::primitives::*;
+use super::{super::errors::KeePassError, error_code::KeePassErrorCode};
 use crate::utils::*;
 #[allow(unused_imports)]
 use crate::{debug, error, info, warn};
@@ -81,7 +81,8 @@ where
             Err(KeePassError {
                 message: response_wrapper.error_message(),
                 response: response_wrapper,
-            })?
+            }
+            .into())
         }
     }
 
@@ -90,7 +91,7 @@ where
 pub trait CipherTextResponse {
     fn get_success(&self) -> &Option<KeePassBoolean>;
     fn get_error(&self) -> &Option<String>;
-    fn get_error_code(&self) -> &Option<String>;
+    fn get_error_code(&self) -> &Option<KeePassErrorCode>;
     fn check(self, action: &KeePassAction) -> Result<()>;
 }
 fn check_cipher_text_response<T: CipherTextResponse>(response: T, action: &str) -> Result<()> {
@@ -108,12 +109,12 @@ fn check_cipher_text_response<T: CipherTextResponse>(response: T, action: &str) 
                 action,
                 response
                     .get_error()
-                    .clone()
-                    .unwrap_or_else(|| "N/A".to_owned()),
+                    .as_ref()
+                    .map_or_else(|| "N/A", |e| e.as_str()),
                 response
                     .get_error_code()
-                    .clone()
-                    .unwrap_or_else(|| "N/A".to_owned())
+                    .as_ref()
+                    .map_or_else(|| "N/A", |e| e.as_ref())
             );
             Err(anyhow::anyhow!("Failed to {}", action))
         }
@@ -140,7 +141,7 @@ macro_rules! impl_cipher_text {
                 fn get_error(&self) -> &Option<String> {
                     &self.error
                 }
-                fn get_error_code(&self) -> &Option<String> {
+                fn get_error_code(&self) -> &Option<KeePassErrorCode> {
                     &self.error_code
                 }
                 fn check(self, action: &KeePassAction) -> Result<()> {
@@ -180,7 +181,7 @@ pub struct GenericResponseWrapper {
     pub nonce: Option<String>,
     pub error: Option<String>,
     #[serde(rename = "errorCode")]
-    pub error_code: Option<String>,
+    pub error_code: Option<KeePassErrorCode>,
 }
 
 impl GenericResponseWrapper {
@@ -194,8 +195,10 @@ impl GenericResponseWrapper {
         format!(
             "Request {} failed, {} (code: {})",
             self.action.to_string(),
-            self.error.clone().unwrap_or_else(|| "N/A".to_owned()),
-            self.error_code.clone().unwrap_or_else(|| "N/A".to_owned())
+            self.error.as_ref().map_or_else(|| "N/A", |e| e.as_str()),
+            self.error_code
+                .as_ref()
+                .map_or_else(|| "N/A", |e| e.as_ref())
         )
     }
 }
@@ -279,7 +282,7 @@ pub struct GetDatabaseHashResponse {
     pub success: Option<KeePassBoolean>,
     pub error: Option<String>,
     #[serde(rename = "errorCode")]
-    pub error_code: Option<String>,
+    pub error_code: Option<KeePassErrorCode>,
 }
 
 /*
@@ -315,7 +318,7 @@ pub struct AssociateResponse {
     pub success: Option<KeePassBoolean>,
     pub error: Option<String>,
     #[serde(rename = "errorCode")]
-    pub error_code: Option<String>,
+    pub error_code: Option<KeePassErrorCode>,
 }
 
 /*
@@ -350,7 +353,7 @@ pub struct TestAssociateResponse {
     pub success: Option<KeePassBoolean>,
     pub error: Option<String>,
     #[serde(rename = "errorCode")]
-    pub error_code: Option<String>,
+    pub error_code: Option<KeePassErrorCode>,
 }
 
 /*
@@ -432,7 +435,7 @@ pub struct GetLoginsResponse {
     pub success: Option<KeePassBoolean>,
     pub error: Option<String>,
     #[serde(rename = "errorCode")]
-    pub error_code: Option<String>,
+    pub error_code: Option<KeePassErrorCode>,
 }
 
 /*
@@ -496,7 +499,7 @@ pub struct SetLoginResponse {
     pub success: Option<KeePassBoolean>,
     pub error: Option<String>,
     #[serde(rename = "errorCode")]
-    pub error_code: Option<String>,
+    pub error_code: Option<KeePassErrorCode>,
 }
 
 /*
@@ -525,7 +528,7 @@ pub struct LockDatabaseResponse {
     pub nonce: Option<String>,
     pub error: Option<String>,
     #[serde(rename = "errorCode")]
-    pub error_code: Option<String>,
+    pub error_code: Option<KeePassErrorCode>,
 }
 
 /*
@@ -563,7 +566,7 @@ pub struct LockDatabaseResponse {
 //     pub success: Option<KeePassBoolean>,
 //     pub error: Option<String>,
 //     #[serde(rename = "errorCode")]
-//     pub error_code: Option<String>,
+//     pub error_code: Option<KeePassErrorCode>,
 // }
 //
 // impl GetDatabaseGroupsResponse {
@@ -604,7 +607,7 @@ pub struct CreateNewGroupResponse {
     pub success: Option<KeePassBoolean>,
     pub error: Option<String>,
     #[serde(rename = "errorCode")]
-    pub error_code: Option<String>,
+    pub error_code: Option<KeePassErrorCode>,
 }
 
 /*
@@ -636,7 +639,7 @@ pub struct GetTotpResponse {
     pub success: Option<KeePassBoolean>,
     pub error: Option<String>,
     #[serde(rename = "errorCode")]
-    pub error_code: Option<String>,
+    pub error_code: Option<KeePassErrorCode>,
 }
 
 // no specs, need to dig into codes
