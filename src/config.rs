@@ -55,6 +55,7 @@ pub struct Config {
     encrypted_callers: Vec<EncryptedProfile>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     encryptions: Vec<Encryption>,
+    #[cfg(feature = "encryption")]
     #[serde(skip)]
     encryption_key: RefCell<Option<AesKey>>,
 }
