@@ -2,7 +2,7 @@
 name = "git-credential-keepassxc"
 version = "0.8.2"
 authors = ["Frederick Zhang <frederick888@tsundere.moe>"]
-edition = "2018"
+edition = "2021"
 description = "Helper that allows Git and shell scripts to use KeePassXC as credential store"
 license = "GPL-3.0-or-later"
 homepage = "https://github.com/Frederick888/git-credential-keepassxc"
