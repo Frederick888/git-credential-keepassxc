@@ -79,7 +79,7 @@ Gonna save current caller to allowed callers list:
 }
 Press Enter to continue...
 # then allow Git to access KeePassXC when sending emails via SMTP
-$ git-credential-keepassxc caller add --uid "$(id -u)" --gid "$(id -g)" "$(command -v git)"
+$ git-credential-keepassxc caller add --uid "$(id -u)" --gid "$(id -g)" "$readlink -f $(command -v git))"
 # also add other Git executables if you want to e.g. clone via HTTPS
 $ git-credential-keepassxc caller add --uid "$(id -u)" --gid "$(id -g)" /usr/lib/git-core/git-remote-http
 
