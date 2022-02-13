@@ -2,6 +2,7 @@ use crate::config::Caller;
 #[allow(unused_imports)]
 use crate::{debug, error, info, warn};
 use anyhow::{anyhow, Result};
+use clap::crate_name;
 use std::path::PathBuf;
 use sysinfo::{
     get_current_pid, PidExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt,
@@ -85,6 +86,23 @@ impl CurrentCaller {
             }
         }
         caller.path == self.path.to_string_lossy()
+    }
+
+    pub fn command_to_add(&self, encrypt: bool) -> String {
+        let mut command = format!("{} caller add", crate_name!());
+        #[cfg(not(windows))]
+        {
+            command += &format!(" --uid {} --gid {}", self.uid, self.gid);
+        }
+        if let Some(ref canonical_path) = self.canonical_path {
+            if canonical_path != &self.path {
+                command += " --canonicalize";
+            }
+        }
+        if encrypt {
+            command += " --encrypt \"\"";
+        }
+        command + " " + &self.path.to_string_lossy()
     }
 }
 
@@ -175,5 +193,111 @@ mod tests {
             canonicalize: false,
         };
         assert!(current_caller.matches(&caller_matches));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_03_generate_add_caller_command() {
+        struct TestCase {
+            path: String,
+            canonical_path: Option<String>,
+            uid: u32,
+            gid: u32,
+            encrypt: bool,
+            want: String,
+        }
+        let cases = vec![
+            TestCase {
+                path: "/path/to/foo".to_string(),
+                canonical_path: None,
+                uid: 1,
+                gid: 2,
+                encrypt: false,
+                want: "git-credential-keepassxc caller add --uid 1 --gid 2 /path/to/foo".to_string(),
+            },
+            TestCase {
+                path: "/path/to/foo".to_string(),
+                canonical_path: Some("/path/to/bar".to_string()),
+                uid: 1,
+                gid: 2,
+                encrypt: false,
+                want: "git-credential-keepassxc caller add --uid 1 --gid 2 --canonicalize /path/to/foo".to_string(),
+            },
+            TestCase {
+                path: "/path/to/foo".to_string(),
+                canonical_path: None,
+                uid: 1,
+                gid: 2,
+                encrypt: true,
+                want: "git-credential-keepassxc caller add --uid 1 --gid 2 --encrypt \"\" /path/to/foo".to_string(),
+            },
+            TestCase {
+                path: "/path/to/foo".to_string(),
+                canonical_path: Some("/path/to/bar".to_string()),
+                uid: 1,
+                gid: 2,
+                encrypt: true,
+                want: "git-credential-keepassxc caller add --uid 1 --gid 2 --canonicalize --encrypt \"\" /path/to/foo".to_string(),
+            },
+        ];
+        for case in cases {
+            let current_caller = CurrentCaller {
+                path: PathBuf::from(case.path),
+                pid: 1,
+                uid: case.uid,
+                gid: case.gid,
+                canonical_path: case.canonical_path.map(PathBuf::from),
+            };
+            let actual = current_caller.command_to_add(case.encrypt);
+            assert_eq!(case.want, actual);
+        }
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_04_windows_generate_add_caller_command() {
+        struct TestCase {
+            path: String,
+            canonical_path: Option<String>,
+            encrypt: bool,
+            want: String,
+        }
+        let cases = vec![
+            TestCase {
+                path: "/path/to/foo".to_string(),
+                canonical_path: None,
+                encrypt: false,
+                want: "git-credential-keepassxc caller add /path/to/foo".to_string(),
+            },
+            TestCase {
+                path: "/path/to/foo".to_string(),
+                canonical_path: Some("/path/to/bar".to_string()),
+                encrypt: false,
+                want: "git-credential-keepassxc caller add --canonicalize /path/to/foo".to_string(),
+            },
+            TestCase {
+                path: "/path/to/foo".to_string(),
+                canonical_path: None,
+                encrypt: true,
+                want: "git-credential-keepassxc caller add --encrypt \"\" /path/to/foo".to_string(),
+            },
+            TestCase {
+                path: "/path/to/foo".to_string(),
+                canonical_path: Some("/path/to/bar".to_string()),
+                encrypt: true,
+                want:
+                    "git-credential-keepassxc caller add --canonicalize --encrypt \"\" /path/to/foo"
+                        .to_string(),
+            },
+        ];
+        for case in cases {
+            let current_caller = CurrentCaller {
+                path: PathBuf::from(case.path),
+                pid: 1,
+                canonical_path: case.canonical_path.map(PathBuf::from),
+            };
+            let actual = current_caller.command_to_add(case.encrypt);
+            assert_eq!(case.want, actual);
+        }
     }
 }
