@@ -420,6 +420,10 @@ fn verify_caller(config: &Config) -> Result<Option<CurrentCaller>> {
         if config.count_callers() == 0 && cfg!(feature = "strict-caller") {
             warn!("No caller profiles defined. You must configure callers before databases when strict-caller feature is enabled");
         }
+        info!(
+            "Run `{}` to add current caller to allowed caller list",
+            current_caller.command_to_add(config.count_encrypted_callers() > 0)
+        );
         #[cfg(windows)]
         let error_message = format!(
             "{} is not allowed to call git-credential-keepassxc",
