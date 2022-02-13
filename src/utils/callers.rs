@@ -3,7 +3,9 @@ use crate::config::Caller;
 use crate::{debug, error, info, warn};
 use anyhow::{anyhow, Result};
 use std::path::PathBuf;
-use sysinfo::{get_current_pid, ProcessExt, RefreshKind, System, SystemExt};
+use sysinfo::{
+    get_current_pid, PidExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt,
+};
 
 pub struct CurrentCaller {
     pub path: PathBuf,
@@ -20,7 +22,9 @@ impl CurrentCaller {
         let pid =
             get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;
         info!("PID: {}", pid);
-        let system = System::new_with_specifics(RefreshKind::new().with_processes());
+        let system = System::new_with_specifics(
+            RefreshKind::new().with_processes(ProcessRefreshKind::new()),
+        );
         debug!("Collecting process info");
         let proc = system
             .process(pid)
@@ -46,7 +50,7 @@ impl CurrentCaller {
         }
         Ok(Self {
             path: ppath.to_owned(),
-            pid: ppid as u32,
+            pid: ppid.as_u32(),
             #[cfg(unix)]
             uid: pproc.uid,
             #[cfg(unix)]
