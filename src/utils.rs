@@ -100,6 +100,21 @@ pub fn get_socket_path() -> Result<PathBuf> {
                     legacy_path.to_string_lossy()
                 );
             }
+            #[cfg(windows)]
+            if let Ok(username) = &std::env::var("USERNAME") {
+                let kpnatmsg_str = "keepassxc\\".to_owned() + username + "\\kpxc_server";
+                let kpnatmsg_path = get_socket_path_with_name(&kpnatmsg_str);
+                if let Ok(kpnatmsg_path) = kpnatmsg_path {
+                    if kpnatmsg_path.exists() {
+                        return Ok(kpnatmsg_path);
+                    }
+                    if PipeClient::connect_ms(&kpnatmsg_path, NAMED_PIPE_CONNECT_TIMEOUT_MS).is_ok()
+                    {
+                        return Ok(kpnatmsg_path);
+                    }
+                    info!("KeePassNatMsg socket path {} does not exist", kpnatmsg_str);
+                }
+            }
             let path = get_socket_path_with_name(KEEPASS_SOCKET_NAME)?;
             #[cfg(windows)]
             if PipeClient::connect_ms(&path, NAMED_PIPE_CONNECT_TIMEOUT_MS).is_ok() {
