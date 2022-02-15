@@ -263,6 +263,13 @@ impl MessagingUtilsInternalTrait for MessagingUtils {
         let mut buf = [0u8; BUF_SIZE];
         loop {
             let len = stream.read(&mut buf)?;
+            #[cfg(debug_assertions)]
+            {
+                debug!("Received {} bytes: {:?}", len, &buf[0..len]);
+                if let Ok(buf_str) = str::from_utf8(&buf[0..len]) {
+                    debug!("Received {} chars: {}", buf_str.len(), buf_str);
+                }
+            }
             response.push_str(str::from_utf8(&buf[0..len]).unwrap());
             if len < BUF_SIZE {
                 break;
