@@ -45,7 +45,7 @@ jobs:
 
       - name: Cancel Previous Runs
         if: contains(matrix.os, 'ubuntu')
-        uses: styfle/cancel-workflow-action@0.6.0
+        uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
 

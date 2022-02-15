@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: repo-sync
-      uses: wei/git-sync@v2
+      uses: wei/git-sync@v3
       with:
         source_repo: "https://github.com/Frederick888/git-credential-keepassxc.git"
         source_branch: "refs/remotes/source/*"
@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: repo-sync
-      uses: wei/git-sync@v2
+      uses: wei/git-sync@v3
       with:
         source_repo: "https://github.com/Frederick888/git-credential-keepassxc.git"
         source_branch: "refs/tags/*"
