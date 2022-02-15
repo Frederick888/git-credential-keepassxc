@@ -138,6 +138,11 @@ jobs:
             target/release/git-credential-keepassxc
             target/release/git-credential-keepassxc.exe
 
+      - name: "Test (No Features)"
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release
       - name: "Test (No strict-caller)"
         uses: actions-rs/cargo@v1
         with:
