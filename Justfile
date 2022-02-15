@@ -3,6 +3,10 @@ set shell := ["bash", "+u", "-c"]
 alias cov := coverage
 
 test:
+    if ! cargo test; then \
+        just test-clean; \
+        exit 1; \
+    fi
     if ! cargo test --features=notification,encryption,yubikey; then \
         just test-clean; \
         exit 1; \

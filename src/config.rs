@@ -3,7 +3,7 @@ use crate::utils::callers::CurrentCaller;
 use crate::{debug, error, info, warn};
 use aes_gcm::aead::generic_array::{typenum, GenericArray};
 use anyhow::{anyhow, Context, Result};
-#[cfg(test)]
+#[cfg(all(test, feature = "yubikey"))]
 use mockall::automock;
 use serde::{de, Deserialize, Serialize};
 use std::cell::RefCell;
@@ -736,7 +736,7 @@ trait YubiKeyTrait {
     ) -> Result<Vec<u8>, YubicoError>;
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "yubikey"))]
 impl MockYubiKeyTrait {
     fn new_mock() -> Self {
         use hmac::Mac;
@@ -833,14 +833,19 @@ mod tests {
     use super::*;
     use crate::keepassxc::Group;
     use crate::utils::generate_secret_key;
+    #[cfg(feature = "yubikey")]
     use hmac::Hmac;
+    #[cfg(feature = "yubikey")]
     use sha1::Sha1;
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
+    #[cfg(feature = "yubikey")]
     pub type HmacSha1 = Hmac<Sha1>;
 
+    #[cfg(feature = "yubikey")]
     pub static TEST_YUBIKEY_SERIAL: u32 = 1234567;
+    #[cfg(feature = "yubikey")]
     pub static TEST_YUBIKEY_HMAC_SHA1_SECRET: &'static str = "test_secret";
 
     #[test]
@@ -882,6 +887,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "yubikey")]
     fn test_01_config_read_write_challenge_response() {
         let config_path = {
             let mut temp = std::env::temp_dir();
@@ -935,6 +941,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "yubikey")]
     fn test_02_ignore_plaintext_callers_when_there_are_encrypted_ones() {
         let config_path = {
             let mut temp = std::env::temp_dir();
