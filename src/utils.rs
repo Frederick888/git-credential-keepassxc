@@ -268,7 +268,11 @@ impl MessagingUtilsInternalTrait for MessagingUtils {
         let mut buf = [0u8; BUF_SIZE];
         loop {
             let len = match stream.read(&mut buf) {
-                Ok(len) => len,
+                Ok(len) if len <= BUF_SIZE => len,
+                Ok(len) => {
+                    warn!("Read returned {} > BUF_SIZE ({})", len, BUF_SIZE);
+                    BUF_SIZE
+                }
                 Err(e) if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock => {
                     0usize
                 }
