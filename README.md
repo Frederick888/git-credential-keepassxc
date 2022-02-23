@@ -84,7 +84,7 @@ $ git-credential-keepassxc caller add --uid "$(id -u)" --gid "$(id -g)" "$(comma
 $ git-credential-keepassxc caller add --uid "$(id -u)" --gid "$(id -g)" /usr/lib/git-core/git-remote-http
 
 $ sh -c 'printf "url=https://example.com\nusername=foo\n" | git-credential-keepassxc get'
-May 10 12:51:56.108 ERRO You are not allowed to use this program, Caused by: N/A, Message: You are not allowed to use this program
+May 10 12:51:56.108 ERRO /usr/bin/bash (uid=1000, gid=1000) is not allowed to call git-credential-keepassxc, Caused by: N/A
 $ printf 'url=https://example.com\nusername=foo\n' | git credential fill
 May 10 12:52:53.995 WARN Request get-logins failed. Error: No logins found, Error Code: 15
 May 10 12:52:53.995 ERRO Request get-logins failed, Caused by: N/A, Message: Request get-logins failed
