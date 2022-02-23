@@ -13,7 +13,7 @@ It communicates with KeePassXC using [keepassxc-protocol](https://github.com/kee
 ### Quick
 
 1. Install [Rust](https://www.rust-lang.org/) compiler via [rustup](https://rustup.rs/) or your favourite package manager
-0. Run `cargo install git-credential-keepassxc` (or `cargo install --git https://github.com/Frederick888/git-credential-keepassxc.git` for the latest development version)
+0. Run `cargo install --locked git-credential-keepassxc` (or `cargo install --locked --git https://github.com/Frederick888/git-credential-keepassxc.git` for the latest development version)
 
 *Note:* Make sure `$CARGO_INSTALL_ROOT` is in your search path.
 
@@ -38,11 +38,11 @@ It is suggested to use [cargo-update](https://crates.io/crates/cargo-update) to 
 
 ```sh
 # install cargo-update first
-$ cargo install cargo-update
+$ cargo install --locked cargo-update
 # enable and persist features
-$ cargo install --features <FEATURE>... git-credential-keepassxc
+$ cargo install --locked --features <FEATURE>... git-credential-keepassxc
 # note the flipped order of package name and --feature flag
-$ cargo install-update-config git-credential-keepassxc --feature <FEATURE>...
+$ cargo install-update-config git-credential-keepassxc --enforce-lock --feature <FEATURE>...
 
 # later when you update
 $ cargo install-update git-credential-keepassxc
