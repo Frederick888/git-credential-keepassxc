@@ -14,17 +14,15 @@ use once_cell::unsync::OnceCell;
 use std::cell::RefCell;
 use std::env;
 use std::fmt;
-use std::io::{ErrorKind, Read, Write};
+use std::io::{Read, Write};
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::str;
-use std::time::Duration;
 
 #[cfg(windows)]
 const NAMED_PIPE_CONNECT_TIMEOUT_MS: u32 = 100;
-const READ_TIMEOUT: Duration = Duration::new(0, 200 * 1_000_000);
 const KEEPASS_SOCKET_NAME: &str = "org.keepassxc.KeePassXC.BrowserServer";
 const KEEPASS_SOCKET_NAME_LEGACY: &str = "kpxc_server";
 const KEEPASS_SOCKET_ENVIRONMENT_VARIABLE: &str = "KEEPASSXC_BROWSER_SOCKET_PATH";
@@ -171,16 +169,14 @@ fn get_stream() -> Result<Rc<RefCell<UnixStream>>> {
     STREAM.with(|s| -> Result<_> {
         Ok(s.get_or_try_init(|| -> Result<_> {
             let path = get_socket_path()?;
-            let stream = UnixStream::connect(&path).with_context(|| {
-                format!(
-                    "Failed to connect to Unix socket {}",
-                    path.to_string_lossy()
-                )
-            })?;
-            if let Err(e) = stream.set_read_timeout(Some(READ_TIMEOUT)) {
-                warn!("Failed to set read timeout: {}", e);
-            }
-            Ok(Rc::new(RefCell::new(stream)))
+            Ok(Rc::new(RefCell::new(
+                UnixStream::connect(&path).with_context(|| {
+                    format!(
+                        "Failed to connect to Unix socket {}",
+                        path.to_string_lossy()
+                    )
+                })?,
+            )))
         })?
         .clone())
     })
@@ -192,12 +188,11 @@ fn get_stream() -> Result<Rc<RefCell<PipeClient>>> {
     STREAM.with(|s| -> Result<_> {
         Ok(s.get_or_try_init(|| -> Result<_> {
             let path = get_socket_path()?;
-            let mut stream = PipeClient::connect_ms(&path, NAMED_PIPE_CONNECT_TIMEOUT_MS)
-                .with_context(|| {
-                    format!("Failed to connect to named pipe {}", path.to_string_lossy())
-                })?;
-            stream.set_read_timeout(Some(READ_TIMEOUT));
-            Ok(Rc::new(RefCell::new(stream)))
+            Ok(Rc::new(RefCell::new(
+                PipeClient::connect_ms(&path, NAMED_PIPE_CONNECT_TIMEOUT_MS).with_context(
+                    || format!("Failed to connect to named pipe {}", path.to_string_lossy()),
+                )?,
+            )))
         })?
         .clone())
     })
@@ -272,9 +267,6 @@ impl MessagingUtilsInternalTrait for MessagingUtils {
                 Ok(len) => {
                     warn!("Read returned {} > BUF_SIZE ({})", len, BUF_SIZE);
                     BUF_SIZE
-                }
-                Err(e) if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock => {
-                    0usize
                 }
                 Err(e) => return Err(e.into()),
             };
