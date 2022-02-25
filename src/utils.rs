@@ -264,7 +264,7 @@ impl MessagingUtilsInternalTrait for MessagingUtils {
         let stream_rc = get_stream()?;
         let mut stream = stream_rc.borrow_mut();
         let mut response = String::new();
-        const BUF_SIZE: usize = 128;
+        const BUF_SIZE: usize = 2048;
         let mut buf = [0u8; BUF_SIZE];
         loop {
             let len = match stream.read(&mut buf) {
