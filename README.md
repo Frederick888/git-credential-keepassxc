@@ -125,7 +125,17 @@ Although currently it's not possible to return entries only from the Git group, 
 
 ## Scripting
 
-`git-credential-keepassxc` can also help manage credentials in shell scripts. For instance, to connect to a Remote Desktop service:
+`git-credential-keepassxc` can also help manage credentials in shell scripts. You can send a request via standard input in [git-credential input/output format](https://git-scm.com/docs/git-credential#IOFMT) then process the response.
+
+Currently accepted fields in input (unknown fields are ignored):
+
+- `url`
+- `username`
+- `password` (`store` requests only)
+
+Responses are in the same format. Alternatively `get` and `store` responses can also be formatted in JSON by providing `--json` flag.
+
+For instance, to connect to a Remote Desktop service:
 
 ```sh
 #!/usr/bin/env bash
