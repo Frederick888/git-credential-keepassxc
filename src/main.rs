@@ -5,7 +5,7 @@ mod keepassxc;
 mod utils;
 
 use anyhow::{anyhow, Result};
-use clap::{App, ArgMatches};
+use clap::Parser;
 use cli::{GetMode, UnlockOptions};
 use config::{Caller, Config, Database};
 use crypto_box::{PublicKey, SecretKey};
@@ -180,7 +180,7 @@ fn handle_secondary_encryption(config_file: &mut Config) -> Result<()> {
     Ok(())
 }
 
-fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
+fn configure<T: AsRef<Path>>(config_path: T, args: &cli::SubConfigureArgs) -> Result<()> {
     // read existing or create new config
     let mut config_file = if let Ok(config_file) = Config::read_from(&config_path) {
         verify_caller(&config_file)?;
@@ -213,18 +213,14 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     let database_id = aso_resp.id.ok_or_else(|| anyhow!("Association failed"))?;
 
     // try to create a new group even if it already exists, KeePassXC will do the deduplication
-    let group_name = args
-        .subcommand_matches("configure")
-        .and_then(|m| m.value_of("group"))
-        .expect("Group name not specified (there's a default one though, bug?)");
-    let cng_req = CreateNewGroupRequest::new(group_name);
+    if args.group.is_empty() {
+        return Err(anyhow!("Group name must not be empty"));
+    }
+    let cng_req = CreateNewGroupRequest::new(&args.group);
     let cng_resp = cng_req.send(&client_id, false)?;
     let group = Group::new(cng_resp.name, cng_resp.uuid);
 
-    let encryption = args
-        .subcommand_matches("configure")
-        .and_then(|m| m.value_of("encrypt"));
-    if let Some(encryption) = encryption {
+    if let Some(ref encryption) = args.encrypt {
         if config_file.count_encryptions() > 0 && !encryption.is_empty() {
             handle_secondary_encryption(&mut config_file)?;
         }
@@ -241,20 +237,16 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
     );
     config_file.add_database(
         Database::new(database_id, id_seckey, group),
-        encryption.is_some(),
+        args.encrypt.is_some(),
     )?;
     config_file.write_to(&config_path)?;
 
     Ok(())
 }
 
-fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
+fn encrypt<T: AsRef<Path>>(config_path: T, args: &cli::SubEncryptArgs) -> Result<()> {
     let mut config_file = Config::read_from(&config_path)?;
     verify_caller(&config_file)?;
-
-    let encryption = args
-        .subcommand_matches("encrypt")
-        .and_then(|m| m.value_of("ENCRYPTION_PROFILE"));
 
     let count_databases_to_encrypt =
         config_file.count_databases() - config_file.count_encrypted_databases();
@@ -262,7 +254,11 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         config_file.count_callers() - config_file.count_encrypted_callers();
     if count_databases_to_encrypt == 0
         && count_callers_to_encrypt == 0
-        && encryption.map(|m| m.is_empty()).unwrap_or_else(|| true)
+        && args
+            .encryption_profile
+            .as_ref()
+            .map(|m| m.is_empty())
+            .unwrap_or_else(|| true)
     {
         warn!("Database and callers profiles have already been encrypted");
         return Ok(());
@@ -276,7 +272,7 @@ fn encrypt<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         count_databases_to_encrypt
     );
 
-    if let Some(encryption) = encryption {
+    if let Some(ref encryption) = args.encryption_profile {
         if config_file.count_encryptions() > 0 && !encryption.is_empty() {
             handle_secondary_encryption(&mut config_file)?;
         }
@@ -326,7 +322,7 @@ fn decrypt<T: AsRef<Path>>(config_path: T) -> Result<()> {
     Ok(())
 }
 
-fn caller<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
+fn caller<T: AsRef<Path>>(config_path: T, args: &cli::SubCallerArgs) -> Result<()> {
     // read existing or create new config
     let mut config_file = if let Ok(config_file) = Config::read_from(&config_path) {
         verify_caller(&config_file)?;
@@ -335,70 +331,56 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &ArgMatches) -> Result<()> {
         Config::new()
     };
 
-    let subcommand = args.subcommand_matches("caller").unwrap();
-    match subcommand.subcommand() {
-        ("add", Some(sub_args)) | ("me", Some(sub_args)) => {
-            let caller = match subcommand.subcommand().0 {
-                "add" => {
-                    let path = sub_args
-                        .value_of("PATH")
-                        .ok_or_else(|| anyhow!("Must specify path"))?;
-                    Caller {
-                        path: path.to_owned(),
-                        uid: if let Some(id) = sub_args.value_of("uid") {
-                            Some(u32::from_str(id).map_err(|_| anyhow!("Invalid UID"))?)
-                        } else {
-                            None
-                        },
-                        gid: if let Some(id) = sub_args.value_of("gid") {
-                            Some(u32::from_str(id).map_err(|_| anyhow!("Invalid GID"))?)
-                        } else {
-                            None
-                        },
-                        canonicalize: sub_args.is_present("canonicalize"),
-                    }
-                }
-                "me" => {
-                    let current_caller = CurrentCaller::new()?;
-                    #[cfg(unix)]
-                    let caller = Caller::from_current_caller(
-                        &current_caller,
-                        sub_args.is_present("no-uid"),
-                        sub_args.is_present("no-gid"),
-                        sub_args.is_present("canonicalize"),
-                    );
-                    #[cfg(windows)]
-                    let caller = Caller::from_current_caller(
-                        &current_caller,
-                        sub_args.is_present("canonicalize"),
-                    );
-                    println!(
-                        "Gonna save current caller to allowed callers list:\n{}",
-                        serde_json::to_string_pretty(&caller)?
-                    );
-                    prompt_for_confirmation()?;
-                    caller
-                }
-                _ => unreachable!("Unreachable code when processing caller subcommand"),
+    match &args.command {
+        cli::CallerSubcommands::Add(caller_add_args) => {
+            let caller = Caller {
+                path: caller_add_args.path.clone(),
+                uid: caller_add_args.uid,
+                gid: caller_add_args.gid,
+                canonicalize: caller_add_args.canonicalize,
             };
-            let encryption = subcommand
-                .subcommand()
-                .1
-                .and_then(|m| m.value_of("encrypt"));
-            if let Some(encryption) = encryption {
+            if let Some(ref encryption) = caller_add_args.encrypt {
                 // this will error if an existing encryption profile has already been configured for the
                 // underlying hardware/etc
                 // in this case user should decrypt the configuration first
                 config_file.add_encryption(encryption)?;
             }
-            config_file.add_caller(caller, encryption.is_some())?;
+            config_file.add_caller(caller, caller_add_args.encrypt.is_some())?;
             config_file.write_to(config_path)
         }
-        ("clear", _) => {
+        cli::CallerSubcommands::Me(caller_me_args) => {
+            let caller = {
+                let current_caller = CurrentCaller::new()?;
+                #[cfg(unix)]
+                let caller = Caller::from_current_caller(
+                    &current_caller,
+                    caller_me_args.no_uid,
+                    caller_me_args.no_uid,
+                    caller_me_args.canonicalize,
+                );
+                #[cfg(windows)]
+                let caller =
+                    Caller::from_current_caller(&current_caller, caller_me_args.canonicalize);
+                println!(
+                    "Gonna save current caller to allowed callers list:\n{}",
+                    serde_json::to_string_pretty(&caller)?
+                );
+                prompt_for_confirmation()?;
+                caller
+            };
+            if let Some(ref encryption) = caller_me_args.encrypt {
+                // this will error if an existing encryption profile has already been configured for the
+                // underlying hardware/etc
+                // in this case user should decrypt the configuration first
+                config_file.add_encryption(encryption)?;
+            }
+            config_file.add_caller(caller, caller_me_args.encrypt.is_some())?;
+            config_file.write_to(config_path)
+        }
+        cli::CallerSubcommands::Clear(_) => {
             config_file.clear_callers();
             config_file.write_to(config_path)
         }
-        _ => Err(anyhow!("No subcommand selected")),
     }
 }
 
@@ -804,14 +786,9 @@ fn real_main() -> Result<()> {
             .or_else(|c| Err(anyhow!("Failed to disable dump, code: {}", c)))?;
     }
 
-    let yaml = clap::load_yaml!("cli.yml");
-    let args = App::from_yaml(yaml)
-        .author(env!("CARGO_PKG_AUTHORS"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .get_matches();
+    let args = cli::MainArgs::parse();
 
-    let level = Level::from_usize(std::cmp::min(6, args.occurrences_of("verbose") + 2) as usize)
-        .unwrap_or(Level::Error);
+    let level = Level::from_usize(std::cmp::min(6, args.verbose + 2)).unwrap_or(Level::Error);
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::FullFormat::new(decorator)
         .build()
@@ -837,16 +814,16 @@ fn real_main() -> Result<()> {
     }
 
     let config_path = {
-        if let Some(path) = args.value_of("config") {
+        if let Some(path) = args.config {
             info!("Configuration file path is set to {} by user", path);
             PathBuf::from(path)
         } else {
             let base_dirs = directories_next::BaseDirs::new()
                 .ok_or_else(|| anyhow!("Failed to initialise base_dirs"))?;
-            base_dirs.config_dir().join(clap::crate_name!())
+            base_dirs.config_dir().join(env!("CARGO_BIN_NAME"))
         }
     };
-    if let Some(path) = args.value_of("socket") {
+    if let Some(path) = args.socket {
         info!("Socket path is set to {} by user", path);
         let path = PathBuf::from(path);
         utils::SOCKET_PATH.with(|s| {
@@ -854,57 +831,54 @@ fn real_main() -> Result<()> {
         });
     };
     let unlock_options = {
-        if let Some(unlock_options) = args.value_of("unlock") {
+        if let Some(unlock_options) = args.unlock {
             info!("Database unlock option is given by user");
-            Some(UnlockOptions::from_str(unlock_options)?)
+            Some(UnlockOptions::from_str(&unlock_options)?)
         } else {
             None
         }
     };
 
-    let subcommand = args
-        .subcommand_name()
-        .ok_or_else(|| anyhow!("No subcommand selected"))?;
-    debug!("Subcommand: {}", subcommand);
-    let get_mode = match subcommand {
-        "get" => args.subcommand_matches("get").map(|m| {
-            if m.is_present("totp") {
-                GetMode::PasswordAndTotp
+    debug!("Subcommand: {}", args.command.name());
+    let get_mode = match &args.command {
+        cli::Subcommands::Get(get_args) => {
+            if get_args.totp {
+                Some(GetMode::PasswordAndTotp)
             } else {
-                GetMode::PasswordOnly
+                Some(GetMode::PasswordOnly)
             }
-        }),
-        "totp" => Some(GetMode::TotpOnly),
+        }
+        cli::Subcommands::Totp(_) => Some(GetMode::TotpOnly),
         _ => None,
     };
-    let no_filter = match subcommand {
-        "get" | "store" => args
-            .subcommand_matches(subcommand)
-            .map(|m| m.is_present("no-filter"))
-            .unwrap(),
+    // let no_filter = match subcommand {
+    //     "get" | "store" => args
+    //         .subcommand_matches(subcommand)
+    //         .map(|m| m.is_present("no-filter"))
+    //         .unwrap(),
+    //     _ => false,
+    // };
+    let no_filter = match &args.command {
+        cli::Subcommands::Get(get_args) => get_args.no_filter,
+        cli::Subcommands::Store(store_args) => store_args.no_filter,
         _ => false,
     };
-    let advanced_fields = match subcommand {
-        "get" => args
-            .subcommand_matches("get")
-            .map(|m| m.is_present("advanced-fields"))
-            .unwrap(),
+    let advanced_fields = match &args.command {
+        cli::Subcommands::Get(get_args) => get_args.advanced_fields,
         _ => false,
     };
-    let json = match subcommand {
-        "get" | "totp" => args
-            .subcommand_matches(subcommand)
-            .map(|m| m.is_present("json"))
-            .unwrap(),
+    let json = match &args.command {
+        cli::Subcommands::Get(get_args) => get_args.json,
+        cli::Subcommands::Totp(totp_args) => totp_args.json,
         _ => false,
     };
-    match subcommand {
-        "configure" => configure(config_path, &args),
-        "edit" => edit(config_path),
-        "encrypt" => encrypt(config_path, &args),
-        "decrypt" => decrypt(config_path),
-        "caller" => caller(config_path, &args),
-        "get" | "totp" => get_logins(
+    match &args.command {
+        cli::Subcommands::Configure(configure_args) => configure(config_path, configure_args),
+        cli::Subcommands::Edit(_) => edit(config_path),
+        cli::Subcommands::Encrypt(encrypt_args) => encrypt(config_path, encrypt_args),
+        cli::Subcommands::Decrypt(_) => decrypt(config_path),
+        cli::Subcommands::Caller(caller_args) => caller(config_path, caller_args),
+        cli::Subcommands::Get(_) | cli::Subcommands::Totp(_) => get_logins(
             config_path,
             &unlock_options,
             &get_mode,
@@ -912,10 +886,9 @@ fn real_main() -> Result<()> {
             advanced_fields,
             json,
         ),
-        "store" => store_login(config_path, &unlock_options, no_filter),
-        "erase" => erase_login(),
-        "lock" => lock_database(config_path),
-        _ => Err(anyhow!(anyhow!("Unrecognised subcommand"))),
+        cli::Subcommands::Store(_) => store_login(config_path, &unlock_options, no_filter),
+        cli::Subcommands::Erase(_) => erase_login(),
+        cli::Subcommands::Lock(_) => lock_database(config_path),
     }
 }
 
