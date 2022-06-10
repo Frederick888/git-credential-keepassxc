@@ -46,7 +46,7 @@ impl CurrentCaller {
                 canonical_ppath.as_ref().unwrap().to_string_lossy()
             );
         } else {
-            warn!("Cannot determine canonical parent process path");
+            warn!("Failed to determine canonical parent process path");
         }
         Ok(Self {
             path: ppath.to_owned(),
