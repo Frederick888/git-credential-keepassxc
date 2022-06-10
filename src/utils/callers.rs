@@ -5,9 +5,7 @@ use anyhow::{anyhow, Result};
 #[cfg(unix)]
 use std::ops::Deref;
 use std::path::PathBuf;
-use sysinfo::{
-    get_current_pid, PidExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt,
-};
+use sysinfo::{get_current_pid, PidExt, ProcessExt, RefreshKind, System, SystemExt};
 
 pub struct CurrentCaller {
     pub path: PathBuf,
@@ -21,13 +19,12 @@ pub struct CurrentCaller {
 
 impl CurrentCaller {
     pub fn new() -> Result<Self> {
+        debug!("Collecting process info");
         let pid =
             get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;
         info!("PID: {}", pid);
-        let system = System::new_with_specifics(
-            RefreshKind::new().with_processes(ProcessRefreshKind::new()),
-        );
-        debug!("Collecting process info");
+        let mut system = System::new_with_specifics(RefreshKind::new());
+        system.refresh_process(pid);
         let proc = system
             .process(pid)
             .ok_or_else(|| anyhow!("Failed to retrieve information of current process"))?;
@@ -36,6 +33,7 @@ impl CurrentCaller {
             .parent()
             .ok_or_else(|| anyhow!("Failed to retrieve parent PID"))?;
         info!("PPID: {}", ppid);
+        system.refresh_process(ppid);
         let pproc = system
             .process(ppid)
             .ok_or_else(|| anyhow!("Failed to retrieve information of parent process"))?;
@@ -306,6 +304,16 @@ mod tests {
             };
             let actual = current_caller.command_to_add(case.encrypt);
             assert_eq!(case.want, actual);
+        }
+    }
+
+    #[test]
+    fn test_05_get_current_caller() {
+        let current_caller = CurrentCaller::new();
+        assert!(current_caller.is_ok());
+        if let Ok(current_caller) = current_caller {
+            assert!(!current_caller.path.to_string_lossy().is_empty());
+            assert!(current_caller.pid > 0);
         }
     }
 }
