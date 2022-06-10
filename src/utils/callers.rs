@@ -3,7 +3,6 @@ use crate::config::Caller;
 use crate::{debug, error, info, warn};
 use anyhow::{anyhow, Result};
 use clap::crate_name;
-use std::fmt::Write;
 use std::path::PathBuf;
 use sysinfo::{
     get_current_pid, PidExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt,
@@ -93,6 +92,7 @@ impl CurrentCaller {
         let mut command = format!("{} caller add", crate_name!());
         #[cfg(not(windows))]
         {
+            use std::fmt::Write;
             let _ = write!(command, " --uid {} --gid {}", self.uid, self.gid);
         }
         if let Some(ref canonical_path) = self.canonical_path {
