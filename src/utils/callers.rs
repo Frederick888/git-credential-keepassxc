@@ -36,7 +36,7 @@ impl CurrentCaller {
         info!("PPID: {}", ppid);
         let pproc = system
             .process(ppid)
-            .ok_or_else(|| anyhow!("Failed to retrieve parent process information"))?;
+            .ok_or_else(|| anyhow!("Failed to retrieve information of parent process"))?;
         let ppath = pproc.exe();
         info!("Parent process path: {}", ppath.to_string_lossy());
         let canonical_ppath = ppath.canonicalize();
