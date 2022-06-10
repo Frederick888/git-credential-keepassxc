@@ -2,7 +2,7 @@ use num_enum::FromPrimitive;
 use serde::{Deserialize, Serialize};
 use strum::AsRefStr;
 
-#[derive(FromPrimitive, AsRefStr, Clone, Copy, PartialEq, Debug)]
+#[derive(FromPrimitive, AsRefStr, Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum KeePassErrorCode {
     #[num_enum(default)]

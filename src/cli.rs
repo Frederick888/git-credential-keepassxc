@@ -34,7 +34,7 @@ impl FromStr for UnlockOptions {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum GetMode {
     PasswordOnly,
     PasswordAndTotp,

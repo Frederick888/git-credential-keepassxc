@@ -41,7 +41,7 @@ impl AsRef<bool> for KeePassBoolean {
 
 macro_rules! define_action {
     ([$(($variant:ident, $string:literal, $readable:literal),)*]) => {
-        #[derive(Clone, Debug, PartialEq)]
+        #[derive(Clone, Debug, PartialEq, Eq)]
         pub enum KeePassAction {
             $($variant,)*
         }
