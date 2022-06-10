@@ -811,7 +811,7 @@ impl YubiKeyTrait for YubiKey {
                 .summary("Tap YubiKey if necessary")
                 .body(&format!(
                     "{} is going to send HMAC challenge to YubiKey",
-                    clap::crate_name!()
+                    env!("CARGO_BIN_NAME")
                 ))
                 .timeout(Timeout::Milliseconds(3000))
                 .show();
@@ -852,7 +852,7 @@ mod tests {
     fn test_00_config_read_write_plain_text() {
         let config_path = {
             let mut temp = std::env::temp_dir();
-            temp.push(format!("{}.test_00.json", clap::crate_name!()));
+            temp.push(format!("{}.test_00.json", env!("CARGO_BIN_NAME")));
             assert!(
                 !temp.exists(),
                 "Test configuration file {} already exists",
@@ -891,7 +891,7 @@ mod tests {
     fn test_01_config_read_write_challenge_response() {
         let config_path = {
             let mut temp = std::env::temp_dir();
-            temp.push(format!("{}.test_01.json", clap::crate_name!()));
+            temp.push(format!("{}.test_01.json", env!("CARGO_BIN_NAME")));
             assert!(
                 !temp.exists(),
                 "Test configuration file {} already exists",
@@ -945,7 +945,7 @@ mod tests {
     fn test_02_ignore_plaintext_callers_when_there_are_encrypted_ones() {
         let config_path = {
             let mut temp = std::env::temp_dir();
-            temp.push(format!("{}.test_02.json", clap::crate_name!()));
+            temp.push(format!("{}.test_02.json", env!("CARGO_BIN_NAME")));
             assert!(
                 !temp.exists(),
                 "Test configuration file {} already exists",
@@ -983,7 +983,7 @@ mod tests {
     fn test_github_15_00_new_config_file_permissions() {
         let config_path = {
             let mut temp = std::env::temp_dir();
-            temp.push(format!("{}.test_github_15_00.json", clap::crate_name!()));
+            temp.push(format!("{}.test_github_15_00.json", env!("CARGO_BIN_NAME")));
             assert!(
                 !temp.exists(),
                 "Test configuration file {} already exists",
@@ -1019,7 +1019,7 @@ mod tests {
     fn test_github_15_01_existing_config_file_permissions() {
         let config_path = {
             let mut temp = std::env::temp_dir();
-            temp.push(format!("{}.test_github_15_01.json", clap::crate_name!()));
+            temp.push(format!("{}.test_github_15_01.json", env!("CARGO_BIN_NAME")));
             assert!(
                 !temp.exists(),
                 "Test configuration file {} already exists",

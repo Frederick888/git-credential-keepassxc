@@ -2,7 +2,6 @@ use crate::config::Caller;
 #[allow(unused_imports)]
 use crate::{debug, error, info, warn};
 use anyhow::{anyhow, Result};
-use clap::crate_name;
 use std::path::PathBuf;
 use sysinfo::{
     get_current_pid, PidExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt,
@@ -89,7 +88,7 @@ impl CurrentCaller {
     }
 
     pub fn command_to_add(&self, encrypt: bool) -> String {
-        let mut command = format!("{} caller add", crate_name!());
+        let mut command = format!("{} caller add", env!("CARGO_BIN_NAME"));
         #[cfg(not(windows))]
         {
             use std::fmt::Write;
