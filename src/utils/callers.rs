@@ -2,6 +2,8 @@ use crate::config::Caller;
 #[allow(unused_imports)]
 use crate::{debug, error, info, warn};
 use anyhow::{anyhow, Result};
+#[cfg(unix)]
+use std::ops::Deref;
 use std::path::PathBuf;
 use sysinfo::{
     get_current_pid, PidExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt,
@@ -52,9 +54,15 @@ impl CurrentCaller {
             path: ppath.to_owned(),
             pid: ppid.as_u32(),
             #[cfg(unix)]
-            uid: pproc.uid,
+            uid: *pproc
+                .user_id()
+                .ok_or_else(|| anyhow!("Failed to retrieve parent process user ID"))?
+                .deref(),
             #[cfg(unix)]
-            gid: pproc.gid,
+            gid: *pproc
+                .group_id()
+                .ok_or_else(|| anyhow!("Failed to retrieve parent process group ID"))?
+                .deref(),
             canonical_path: canonical_ppath.ok(),
         })
     }
