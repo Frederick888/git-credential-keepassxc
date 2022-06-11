@@ -27,7 +27,7 @@ pub struct MainArgs {
 #[derive(Subcommand)]
 pub enum Subcommands {
     Get(SubGetArgs),
-    Totp(SubTOTPArgs),
+    Totp(SubTotpArgs),
     Store(SubStoreArgs),
     Erase(SubEraseArgs),
     Lock(SubLockArgs),
@@ -105,13 +105,13 @@ impl GetOperation for SubGetArgs {
 
 /// Get TOTP
 #[derive(Args)]
-pub struct SubTOTPArgs {
+pub struct SubTotpArgs {
     /// Print JSON
     #[clap(long)]
     pub json: bool,
 }
 
-impl GetOperation for SubTOTPArgs {
+impl GetOperation for SubTotpArgs {
     fn get_mode(&self) -> GetMode {
         GetMode::TotpOnly
     }
