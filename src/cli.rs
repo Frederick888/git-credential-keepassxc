@@ -57,6 +57,13 @@ impl Subcommands {
     }
 }
 
+pub trait GetOperation {
+    fn get_mode(&self) -> GetMode;
+    fn no_filter(&self) -> bool;
+    fn advanced_fields(&self) -> bool;
+    fn json(&self) -> bool;
+}
+
 /// Get credential (used by Git)
 #[derive(Args)]
 pub struct SubGetArgs {
@@ -74,12 +81,52 @@ pub struct SubGetArgs {
     pub json: bool,
 }
 
+impl GetOperation for SubGetArgs {
+    fn get_mode(&self) -> GetMode {
+        if self.totp {
+            GetMode::PasswordAndTotp
+        } else {
+            GetMode::PasswordOnly
+        }
+    }
+
+    fn no_filter(&self) -> bool {
+        self.no_filter
+    }
+
+    fn advanced_fields(&self) -> bool {
+        self.advanced_fields
+    }
+
+    fn json(&self) -> bool {
+        self.json
+    }
+}
+
 /// Get TOTP
 #[derive(Args)]
 pub struct SubTOTPArgs {
     /// Print JSON
     #[clap(long)]
     pub json: bool,
+}
+
+impl GetOperation for SubTOTPArgs {
+    fn get_mode(&self) -> GetMode {
+        GetMode::TotpOnly
+    }
+
+    fn no_filter(&self) -> bool {
+        false
+    }
+
+    fn advanced_fields(&self) -> bool {
+        false
+    }
+
+    fn json(&self) -> bool {
+        self.json
+    }
 }
 
 /// Store credential (used by Git)

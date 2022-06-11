@@ -489,14 +489,11 @@ fn filter_kph_logins(login_entries: &[LoginEntry], skip: bool) -> (u32, Vec<&Log
     (kph_false, login_entries)
 }
 
-fn get_logins<T: AsRef<Path>>(
-    config_path: T,
-    unlock_options: &Option<UnlockOptions>,
-    get_mode: &Option<GetMode>,
-    no_filter: bool,
-    advanced_fields: bool,
-    json: bool,
-) -> Result<()> {
+fn get_logins<T, A>(config_path: T, unlock_options: &Option<UnlockOptions>, args: &A) -> Result<()>
+where
+    T: AsRef<Path>,
+    A: cli::GetOperation,
+{
     let config = Config::read_from(config_path.as_ref())?;
     let _current_caller = verify_caller(&config)?;
     // read credential request
@@ -531,7 +528,7 @@ fn get_logins<T: AsRef<Path>>(
 
     let login_entries = get_logins_for(&config, &client_id, &url, unlock_options)?;
     info!("KeePassXC returned {} login(s)", login_entries.len());
-    let (kph_false, mut login_entries) = filter_kph_logins(&login_entries, no_filter);
+    let (kph_false, mut login_entries) = filter_kph_logins(&login_entries, args.no_filter());
     if kph_false > 0 {
         info!("{} login(s) were labelled as KPH: git == false", kph_false);
     }
@@ -561,28 +558,26 @@ fn get_logins<T: AsRef<Path>>(
     let mut git_resp = git_req;
 
     // entry found handle TOTP now
-    if let Some(mode) = get_mode {
-        match mode {
-            GetMode::PasswordAndTotp => {
-                if let Ok(totp) = get_totp_for(&client_id, &login.uuid) {
-                    git_resp.totp = Some(totp);
-                } else {
-                    error!("Failed to get TOTP");
-                }
+    match args.get_mode() {
+        GetMode::PasswordAndTotp => {
+            if let Ok(totp) = get_totp_for(&client_id, &login.uuid) {
+                git_resp.totp = Some(totp);
+            } else {
+                error!("Failed to get TOTP");
             }
-            GetMode::TotpOnly => {
-                git_resp.totp = Some(get_totp_for(&client_id, &login.uuid)?);
-            }
-            _ => {}
         }
+        GetMode::TotpOnly => {
+            git_resp.totp = Some(get_totp_for(&client_id, &login.uuid)?);
+        }
+        _ => {}
     }
 
-    if get_mode.is_none() || get_mode.as_ref().unwrap() != &GetMode::TotpOnly {
+    if args.get_mode() != GetMode::TotpOnly {
         git_resp.username = Some(login.login.clone());
         git_resp.password = Some(login.password.clone());
     }
 
-    if advanced_fields {
+    if args.advanced_fields() {
         if let Some(ref login_entry_fields) = login.string_fields {
             if !login_entry_fields.is_empty() {
                 git_resp.set_string_fields(login_entry_fields);
@@ -590,7 +585,7 @@ fn get_logins<T: AsRef<Path>>(
         }
     }
 
-    if json {
+    if args.json() {
         io::stdout().write_all(serde_json::to_string(&git_resp)?.as_bytes())?;
     } else {
         io::stdout().write_all(git_resp.to_string().as_bytes())?;
@@ -602,7 +597,7 @@ fn get_logins<T: AsRef<Path>>(
 fn store_login<T: AsRef<Path>>(
     config_path: T,
     unlock_options: &Option<UnlockOptions>,
-    no_filter: bool,
+    args: &cli::SubStoreArgs,
 ) -> Result<()> {
     let config = Config::read_from(config_path.as_ref())?;
     verify_caller(&config)?;
@@ -620,7 +615,7 @@ fn store_login<T: AsRef<Path>>(
 
     let login_entries =
         get_logins_for(&config, &client_id, &url, unlock_options).and_then(|entries| {
-            let (kph_false, entries) = filter_kph_logins(&entries, no_filter);
+            let (kph_false, entries) = filter_kph_logins(&entries, args.no_filter);
             if kph_false > 0 {
                 info!("{} login(s) were labelled as KPH: git == false", kph_false);
             }
@@ -865,46 +860,15 @@ fn real_main() -> Result<()> {
     }
 
     debug!("Subcommand: {}", args.command.name());
-    let get_mode = match &args.command {
-        cli::Subcommands::Get(get_args) => {
-            if get_args.totp {
-                Some(GetMode::PasswordAndTotp)
-            } else {
-                Some(GetMode::PasswordOnly)
-            }
-        }
-        cli::Subcommands::Totp(_) => Some(GetMode::TotpOnly),
-        _ => None,
-    };
-    let no_filter = match &args.command {
-        cli::Subcommands::Get(get_args) => get_args.no_filter,
-        cli::Subcommands::Store(store_args) => store_args.no_filter,
-        _ => false,
-    };
-    let advanced_fields = match &args.command {
-        cli::Subcommands::Get(get_args) => get_args.advanced_fields,
-        _ => false,
-    };
-    let json = match &args.command {
-        cli::Subcommands::Get(get_args) => get_args.json,
-        cli::Subcommands::Totp(totp_args) => totp_args.json,
-        _ => false,
-    };
     match &args.command {
         cli::Subcommands::Configure(configure_args) => configure(config_path, configure_args),
         cli::Subcommands::Edit(_) => edit(config_path),
         cli::Subcommands::Encrypt(encrypt_args) => encrypt(config_path, encrypt_args),
         cli::Subcommands::Decrypt(_) => decrypt(config_path),
         cli::Subcommands::Caller(caller_args) => caller(config_path, caller_args),
-        cli::Subcommands::Get(_) | cli::Subcommands::Totp(_) => get_logins(
-            config_path,
-            &args.unlock,
-            &get_mode,
-            no_filter,
-            advanced_fields,
-            json,
-        ),
-        cli::Subcommands::Store(_) => store_login(config_path, &args.unlock, no_filter),
+        cli::Subcommands::Get(get_args) => get_logins(config_path, &args.unlock, get_args),
+        cli::Subcommands::Totp(totp_args) => get_logins(config_path, &args.unlock, totp_args),
+        cli::Subcommands::Store(store_args) => store_login(config_path, &args.unlock, store_args),
         cli::Subcommands::Erase(_) => erase_login(),
         cli::Subcommands::Lock(_) => lock_database(config_path),
         cli::Subcommands::GeneratePassword(generate_password_args) => {
