@@ -57,6 +57,10 @@ where
             let response_wrapper_json = MessagingUtils::receive_message()?;
             #[cfg(test)]
             let response_wrapper_json = MockMessagingUtils::receive_message()?;
+            // after generate-password request, we get an empty JSON as ACK
+            if response_wrapper_json == "{}" {
+                continue;
+            }
             let response_wrapper: GenericResponseWrapper =
                 serde_json::from_str(&response_wrapper_json)?;
             if response_wrapper.action == self.get_action() {
@@ -155,6 +159,7 @@ impl_cipher_text!([
     (GetDatabaseHashRequest, GetDatabaseHashResponse),
     (AssociateRequest, AssociateResponse),
     (TestAssociateRequest, TestAssociateResponse),
+    (GeneratePasswordRequest, GeneratePasswordResponse),
     (GetLoginsRequest, GetLoginsResponse),
     (SetLoginRequest, SetLoginResponse),
     (LockDatabaseRequest, LockDatabaseResponse),
@@ -357,15 +362,42 @@ pub struct TestAssociateResponse {
 }
 
 /*
- * generate-password (not needed)
+ * generate-password
  * https://github.com/keepassxreboot/keepassxc-browser/blob/develop/keepassxc-protocol.md#generate-password
  */
 
-// message_req_type!(
-//     GeneratePasswordReq,
-//     GeneratePassword,
-//     "generate-password-req"
-// );
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GeneratePasswordRequest {
+    action: KeePassAction,
+    pub nonce: String,
+    #[serde(rename = "clientID")]
+    pub client_id: String,
+    #[serde(rename = "requestID")]
+    pub request_id: String,
+}
+
+impl GeneratePasswordRequest {
+    pub fn new<T: Into<String>>(client_id: T, nonce_b64: T) -> Self {
+        Self {
+            action: KeePassAction::GeneratePassword,
+            nonce: nonce_b64.into(),
+            client_id: client_id.into(),
+            request_id: "12345678".to_string(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GeneratePasswordResponse {
+    pub password: String,
+    /* generic fields */
+    pub version: Option<String>,
+    pub nonce: Option<String>,
+    pub success: Option<KeePassBoolean>,
+    pub error: Option<String>,
+    #[serde(rename = "errorCode")]
+    pub error_code: Option<KeePassErrorCode>,
+}
 
 /*
  * get-logins

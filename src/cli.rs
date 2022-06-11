@@ -31,6 +31,7 @@ pub enum Subcommands {
     Store(SubStoreArgs),
     Erase(SubEraseArgs),
     Lock(SubLockArgs),
+    GeneratePassword(SubGeneratePasswordArgs),
     Configure(SubConfigureArgs),
     Caller(SubCallerArgs),
     Edit(SubEditArgs),
@@ -46,6 +47,7 @@ impl Subcommands {
             Self::Store(_) => "store",
             Self::Erase(_) => "erase",
             Self::Lock(_) => "lock",
+            Self::GeneratePassword(_) => "generate-password",
             Self::Configure(_) => "configure",
             Self::Caller(_) => "caller",
             Self::Edit(_) => "edit",
@@ -95,6 +97,14 @@ pub struct SubEraseArgs {}
 /// Lock KeePassXC database
 #[derive(Args)]
 pub struct SubLockArgs {}
+
+/// Generate a password
+#[derive(Args)]
+pub struct SubGeneratePasswordArgs {
+    /// Print JSON
+    #[clap(long)]
+    pub json: bool,
+}
 
 /// Associate git-credential-keepassxc with KeePassXC and configure preferences
 #[derive(Args)]
