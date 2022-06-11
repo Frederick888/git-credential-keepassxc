@@ -133,7 +133,7 @@ Currently accepted fields in input (unknown fields are ignored):
 - `username`
 - `password` (`store` requests only)
 
-Responses are in the same format. Alternatively `get` and `store` responses can also be formatted in JSON by providing `--json` flag.
+Responses are in the same format. Alternatively `get`, `store`, and `generate-password` responses can also be formatted in JSON by providing `--json` flag.
 
 For instance, to connect to a Remote Desktop service:
 

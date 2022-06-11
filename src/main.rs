@@ -727,6 +727,33 @@ fn lock_database<T: AsRef<Path>>(config_path: T) -> Result<()> {
     ld_resp.check(&ld_req.get_action())
 }
 
+fn generate_password<T: AsRef<Path>>(
+    config_path: T,
+    args: &cli::SubGeneratePasswordArgs,
+) -> Result<()> {
+    let config = Config::read_from(config_path.as_ref())?;
+    verify_caller(&config)?;
+    // start session
+    let (client_id, _, _) = start_session()?;
+
+    let (_, nonce_b64) = nacl_nonce();
+    let gp_req = GeneratePasswordRequest::new(&client_id, &nonce_b64);
+    let gp_resp = gp_req.send(&client_id, false)?;
+
+    let git_resp = GitCredentialMessage {
+        password: Some(gp_resp.password),
+        ..Default::default()
+    };
+
+    if args.json {
+        io::stdout().write_all(serde_json::to_string(&git_resp)?.as_bytes())?;
+    } else {
+        io::stdout().write_all(git_resp.to_string().as_bytes())?;
+    }
+
+    Ok(())
+}
+
 fn edit<T: AsRef<Path>>(config_path: T) -> Result<()> {
     const KNOWN_EDITORS: &[&str] = &["nvim", "vim", "kak", "vi", "nano", "ex"];
     let find_editor = || -> Option<String> {
@@ -882,6 +909,9 @@ fn real_main() -> Result<()> {
         cli::Subcommands::Store(_) => store_login(config_path, &unlock_options, no_filter),
         cli::Subcommands::Erase(_) => erase_login(),
         cli::Subcommands::Lock(_) => lock_database(config_path),
+        cli::Subcommands::GeneratePassword(generate_password_args) => {
+            generate_password(config_path, generate_password_args)
+        }
     }
 }
 
