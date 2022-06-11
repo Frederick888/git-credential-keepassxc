@@ -42,7 +42,7 @@ impl Subcommands {
     pub fn name(&self) -> &'static str {
         match self {
             Self::Get(_) => "get",
-            Self::Totp(_) => "tOTP",
+            Self::Totp(_) => "totp",
             Self::Store(_) => "store",
             Self::Erase(_) => "erase",
             Self::Lock(_) => "lock",
