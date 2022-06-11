@@ -32,7 +32,7 @@ where
     R: CipherTextResponse + DeserializeOwned,
     Self: Serialize,
 {
-    fn send<T: Into<String>>(&self, client_id: T, trigger_unlock: bool) -> Result<R> {
+    fn send<T: Into<String>>(&self, client_id: T, trigger_unlock: bool) -> Result<(R, String)> {
         info!("Sending {} request", self.get_action().to_string());
         let (nonce, nonce_b64) = nacl_nonce();
         let encrypted_request_json = to_encrypted_json(&self, &nonce)?;
@@ -80,7 +80,7 @@ where
             );
             let decrypted_response_json = to_decrypted_json(message, nonce)?;
             let response: R = serde_json::from_str(&decrypted_response_json)?;
-            Ok(response)
+            Ok((response, decrypted_response_json))
         } else {
             Err(KeePassError {
                 message: response_wrapper.error_message(),
