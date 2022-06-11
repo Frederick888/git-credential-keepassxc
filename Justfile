@@ -25,6 +25,19 @@ check:
         cargo check --features=$feature; \
     done
 
+clippy:
+    for feature in default notification encryption yubikey all; do \
+        cargo clippy --features=$feature -- -D warnings; \
+    done
+
+check_fmt:
+    cargo fmt -- --check
+
+lint:
+    just check
+    just check_fmt
+    just clippy
+
 build:
     for feature in default notification encryption yubikey all; do \
         cargo build --release --features=$feature; \
