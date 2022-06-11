@@ -117,7 +117,7 @@ pub struct SubTotpArgs {
     /// Print JSON
     #[clap(long, conflicts_with = "raw")]
     pub json: bool,
-    /// Show raw output from KeePassXC
+    /// Show raw output from KeePassXC with entry UUIDs
     #[clap(long)]
     pub raw: bool,
 }

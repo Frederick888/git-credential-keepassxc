@@ -665,6 +665,8 @@ impl GetTotpRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetTotpResponse {
     pub totp: String,
+    // filled in by us to support TOTP raw mode
+    pub uuid: Option<String>,
     /* generic fields */
     pub version: Option<String>,
     pub nonce: Option<String>,

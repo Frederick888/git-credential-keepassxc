@@ -450,12 +450,13 @@ fn get_logins_for<T: AsRef<str>>(
     Ok((login_entries, gl_resp_raw))
 }
 
-fn get_totp_for<T: AsRef<str>>(client_id: T, uuid: T) -> Result<String> {
+fn get_totp_for<T: AsRef<str>>(client_id: T, uuid: T) -> Result<GetTotpResponse> {
     let gt_req = GetTotpRequest::new(uuid.as_ref());
-    let (gt_resp, _) = gt_req.send(client_id.as_ref(), false)?;
+    let (mut gt_resp, _) = gt_req.send(client_id.as_ref(), false)?;
+    gt_resp.uuid = Some(uuid.as_ref().to_owned());
     if gt_resp.success.is_some() && gt_resp.success.as_ref().unwrap().0 && !gt_resp.totp.is_empty()
     {
-        Ok(gt_resp.totp)
+        Ok(gt_resp)
     } else {
         Err(anyhow!("Failed to get TOTP"))
     }
@@ -530,8 +531,32 @@ where
         get_logins_for(&config, &client_id, &url, unlock_options)?;
     info!("KeePassXC returned {} login(s)", login_entries.len());
 
-    if args.raw() && args.get_mode() == GetMode::PasswordOnly {
-        io::stdout().write_all(login_entries_raw.as_bytes())?;
+    if args.raw() {
+        // GetMode::PasswordAndTotp in raw mode is banned in CLI
+
+        if args.get_mode() == GetMode::PasswordOnly {
+            io::stdout().write_all(login_entries_raw.as_bytes())?;
+        }
+        if args.get_mode() == GetMode::TotpOnly {
+            // this is a little hacky
+            // they're not actually KeePassXC raw responses but serialised from our struct to
+            // inject UUIDs
+            // is there a better way to do this? use a HashMap?
+            let totp_results: Vec<_> = login_entries
+                .iter()
+                .flat_map(|login| {
+                    let totp = get_totp_for(&client_id, &login.uuid);
+                    if let Err(ref e) = totp {
+                        warn!(
+                            "Failed to get TOTP for {} ({}), Caused by: {}",
+                            login.name, login.uuid, e
+                        );
+                    }
+                    totp.ok()
+                })
+                .collect();
+            io::stdout().write_all(serde_json::to_string(&totp_results)?.as_bytes())?;
+        }
         return Ok(());
     }
 
@@ -568,13 +593,13 @@ where
     match args.get_mode() {
         GetMode::PasswordAndTotp => {
             if let Ok(totp) = get_totp_for(&client_id, &login.uuid) {
-                git_resp.totp = Some(totp);
+                git_resp.totp = Some(totp.totp);
             } else {
                 error!("Failed to get TOTP");
             }
         }
         GetMode::TotpOnly => {
-            git_resp.totp = Some(get_totp_for(&client_id, &login.uuid)?);
+            git_resp.totp = Some(get_totp_for(&client_id, &login.uuid)?.totp);
         }
         _ => {}
     }
