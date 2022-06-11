@@ -16,7 +16,7 @@ pub struct MainArgs {
     /// Try unlocking database, applies to get, store and erase only.
     /// Takes one argument in the format of [<MAX_RETRIES>[,<INTERVAL_MS>]]. Use 0 to retry indefinitely. The default interval is 1000ms.
     #[clap(long, verbatim_doc_comment)]
-    pub unlock: Option<String>,
+    pub unlock: Option<UnlockOptions>,
     /// Sets the level of verbosity (-v: WARNING; -vv: INFO; -vvv: DEBUG in debug builds)
     #[clap(short, parse(from_occurrences))]
     pub verbose: usize,

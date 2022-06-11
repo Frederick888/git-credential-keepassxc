@@ -857,14 +857,12 @@ fn real_main() -> Result<()> {
             s.set(path).expect("Failed to set socket path, bug?");
         });
     };
-    let unlock_options = {
-        if let Some(unlock_options) = args.unlock {
-            info!("Database unlock option is given by user");
-            Some(UnlockOptions::from_str(&unlock_options)?)
-        } else {
-            None
-        }
-    };
+    if let Some(ref unlock_options) = args.unlock {
+        info!(
+            "Database unlock option is given by user: max retries {}, interval {}ms",
+            unlock_options.max_retries, unlock_options.interval
+        );
+    }
 
     debug!("Subcommand: {}", args.command.name());
     let get_mode = match &args.command {
@@ -900,13 +898,13 @@ fn real_main() -> Result<()> {
         cli::Subcommands::Caller(caller_args) => caller(config_path, caller_args),
         cli::Subcommands::Get(_) | cli::Subcommands::Totp(_) => get_logins(
             config_path,
-            &unlock_options,
+            &args.unlock,
             &get_mode,
             no_filter,
             advanced_fields,
             json,
         ),
-        cli::Subcommands::Store(_) => store_login(config_path, &unlock_options, no_filter),
+        cli::Subcommands::Store(_) => store_login(config_path, &args.unlock, no_filter),
         cli::Subcommands::Erase(_) => erase_login(),
         cli::Subcommands::Lock(_) => lock_database(config_path),
         cli::Subcommands::GeneratePassword(generate_password_args) => {
