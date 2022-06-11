@@ -851,13 +851,6 @@ fn real_main() -> Result<()> {
         cli::Subcommands::Totp(_) => Some(GetMode::TotpOnly),
         _ => None,
     };
-    // let no_filter = match subcommand {
-    //     "get" | "store" => args
-    //         .subcommand_matches(subcommand)
-    //         .map(|m| m.is_present("no-filter"))
-    //         .unwrap(),
-    //     _ => false,
-    // };
     let no_filter = match &args.command {
         cli::Subcommands::Get(get_args) => get_args.no_filter,
         cli::Subcommands::Store(store_args) => store_args.no_filter,
