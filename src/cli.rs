@@ -62,23 +62,27 @@ pub trait GetOperation {
     fn no_filter(&self) -> bool;
     fn advanced_fields(&self) -> bool;
     fn json(&self) -> bool;
+    fn raw(&self) -> bool;
 }
 
 /// Get credential (used by Git)
 #[derive(Args)]
 pub struct SubGetArgs {
     /// Try getting TOTP
-    #[clap(long)]
+    #[clap(long, conflicts_with = "raw")]
     pub totp: bool,
     /// Do not filter out entries with advanced field 'KPH: git' set to false
-    #[clap(long)]
+    #[clap(long, conflicts_with = "raw")]
     pub no_filter: bool,
     /// Print advanced fields
-    #[clap(long)]
+    #[clap(long, conflicts_with = "raw")]
     pub advanced_fields: bool,
     /// Print JSON
-    #[clap(long)]
+    #[clap(long, conflicts_with = "raw")]
     pub json: bool,
+    /// Show raw output from KeePassXC
+    #[clap(long)]
+    pub raw: bool,
 }
 
 impl GetOperation for SubGetArgs {
@@ -101,14 +105,21 @@ impl GetOperation for SubGetArgs {
     fn json(&self) -> bool {
         self.json
     }
+
+    fn raw(&self) -> bool {
+        self.raw
+    }
 }
 
 /// Get TOTP
 #[derive(Args)]
 pub struct SubTotpArgs {
     /// Print JSON
-    #[clap(long)]
+    #[clap(long, conflicts_with = "raw")]
     pub json: bool,
+    /// Show raw output from KeePassXC with entry UUIDs
+    #[clap(long)]
+    pub raw: bool,
 }
 
 impl GetOperation for SubTotpArgs {
@@ -126,6 +137,10 @@ impl GetOperation for SubTotpArgs {
 
     fn json(&self) -> bool {
         self.json
+    }
+
+    fn raw(&self) -> bool {
+        self.raw
     }
 }
 

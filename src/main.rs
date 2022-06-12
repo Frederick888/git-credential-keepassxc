@@ -106,7 +106,7 @@ fn associated_databases<T: AsRef<str>>(
                         }
                     }
                 };
-                if let Ok(ref taso_resp) = taso_resp {
+                if let Ok((ref taso_resp, _)) = taso_resp {
                     success = taso_resp.success.as_ref().map_or(false, |s| *s.as_ref());
                 }
                 if taso_resp.is_err() || !success {
@@ -209,7 +209,7 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &cli::SubConfigureArgs) -> Re
     let id_pubkey = id_seckey.public_key();
 
     let aso_req = AssociateRequest::new(&session_pubkey, &id_pubkey);
-    let aso_resp = aso_req.send(&client_id, false)?;
+    let (aso_resp, _) = aso_req.send(&client_id, false)?;
     let database_id = aso_resp.id.ok_or_else(|| anyhow!("Association failed"))?;
 
     // try to create a new group even if it already exists, KeePassXC will do the deduplication
@@ -217,7 +217,7 @@ fn configure<T: AsRef<Path>>(config_path: T, args: &cli::SubConfigureArgs) -> Re
         return Err(anyhow!("Group name must not be empty"));
     }
     let cng_req = CreateNewGroupRequest::new(&args.group);
-    let cng_resp = cng_req.send(&client_id, false)?;
+    let (cng_resp, _) = cng_req.send(&client_id, false)?;
     let group = Group::new(cng_resp.name, cng_resp.uuid);
 
     if let Some(ref encryption) = args.encrypt {
@@ -431,7 +431,7 @@ fn get_logins_for<T: AsRef<str>>(
     client_id: T,
     url: T,
     unlock_options: &Option<UnlockOptions>,
-) -> Result<Vec<LoginEntry>> {
+) -> Result<(Vec<LoginEntry>, String)> {
     let databases = associated_databases(config, client_id.as_ref(), unlock_options)?;
     let id_key_pairs: Vec<_> = databases
         .iter()
@@ -440,22 +440,23 @@ fn get_logins_for<T: AsRef<str>>(
 
     // ask KeePassXC for logins
     let gl_req = GetLoginsRequest::new(url.as_ref(), None, None, &id_key_pairs[..]);
-    let gl_resp = gl_req.send(client_id.as_ref(), false)?;
+    let (gl_resp, gl_resp_raw) = gl_req.send(client_id.as_ref(), false)?;
 
     let login_entries: Vec<_> = gl_resp
         .entries
         .into_iter()
         .filter(|e| e.expired.is_none() || !e.expired.as_ref().unwrap().0)
         .collect();
-    Ok(login_entries)
+    Ok((login_entries, gl_resp_raw))
 }
 
-fn get_totp_for<T: AsRef<str>>(client_id: T, uuid: T) -> Result<String> {
+fn get_totp_for<T: AsRef<str>>(client_id: T, uuid: T) -> Result<GetTotpResponse> {
     let gt_req = GetTotpRequest::new(uuid.as_ref());
-    let gt_resp = gt_req.send(client_id.as_ref(), false)?;
+    let (mut gt_resp, _) = gt_req.send(client_id.as_ref(), false)?;
+    gt_resp.uuid = Some(uuid.as_ref().to_owned());
     if gt_resp.success.is_some() && gt_resp.success.as_ref().unwrap().0 && !gt_resp.totp.is_empty()
     {
-        Ok(gt_resp.totp)
+        Ok(gt_resp)
     } else {
         Err(anyhow!("Failed to get TOTP"))
     }
@@ -526,8 +527,39 @@ where
     // start session
     let (client_id, _, _) = start_session()?;
 
-    let login_entries = get_logins_for(&config, &client_id, &url, unlock_options)?;
+    let (login_entries, login_entries_raw) =
+        get_logins_for(&config, &client_id, &url, unlock_options)?;
     info!("KeePassXC returned {} login(s)", login_entries.len());
+
+    if args.raw() {
+        // GetMode::PasswordAndTotp in raw mode is banned in CLI
+
+        if args.get_mode() == GetMode::PasswordOnly {
+            io::stdout().write_all(login_entries_raw.as_bytes())?;
+        }
+        if args.get_mode() == GetMode::TotpOnly {
+            // this is a little hacky
+            // they're not actually KeePassXC raw responses but serialised from our struct to
+            // inject UUIDs
+            // is there a better way to do this? use a HashMap?
+            let totp_results: Vec<_> = login_entries
+                .iter()
+                .flat_map(|login| {
+                    let totp = get_totp_for(&client_id, &login.uuid);
+                    if let Err(ref e) = totp {
+                        warn!(
+                            "Failed to get TOTP for {} ({}), Caused by: {}",
+                            login.name, login.uuid, e
+                        );
+                    }
+                    totp.ok()
+                })
+                .collect();
+            io::stdout().write_all(serde_json::to_string(&totp_results)?.as_bytes())?;
+        }
+        return Ok(());
+    }
+
     let (kph_false, mut login_entries) = filter_kph_logins(&login_entries, args.no_filter());
     if kph_false > 0 {
         info!("{} login(s) were labelled as KPH: git == false", kph_false);
@@ -561,13 +593,13 @@ where
     match args.get_mode() {
         GetMode::PasswordAndTotp => {
             if let Ok(totp) = get_totp_for(&client_id, &login.uuid) {
-                git_resp.totp = Some(totp);
+                git_resp.totp = Some(totp.totp);
             } else {
                 error!("Failed to get TOTP");
             }
         }
         GetMode::TotpOnly => {
-            git_resp.totp = Some(get_totp_for(&client_id, &login.uuid)?);
+            git_resp.totp = Some(get_totp_for(&client_id, &login.uuid)?.totp);
         }
         _ => {}
     }
@@ -614,7 +646,7 @@ fn store_login<T: AsRef<Path>>(
     }
 
     let login_entries =
-        get_logins_for(&config, &client_id, &url, unlock_options).and_then(|entries| {
+        get_logins_for(&config, &client_id, &url, unlock_options).and_then(|(entries, _)| {
             let (kph_false, entries) = filter_kph_logins(&entries, args.no_filter);
             if kph_false > 0 {
                 info!("{} login(s) were labelled as KPH: git == false", kph_false);
@@ -696,7 +728,7 @@ fn store_login<T: AsRef<Path>>(
             None,
         )
     };
-    let sl_resp = sl_req.send(&client_id, false)?;
+    let (sl_resp, _) = sl_req.send(&client_id, false)?;
 
     sl_resp.check(&sl_req.get_action())
 }
@@ -717,7 +749,7 @@ fn lock_database<T: AsRef<Path>>(config_path: T) -> Result<()> {
     let (client_id, _, _) = start_session()?;
 
     let ld_req = LockDatabaseRequest::new();
-    let ld_resp = ld_req.send(&client_id, false)?;
+    let (ld_resp, _) = ld_req.send(&client_id, false)?;
 
     ld_resp.check(&ld_req.get_action())
 }
@@ -733,7 +765,7 @@ fn generate_password<T: AsRef<Path>>(
 
     let (_, nonce_b64) = nacl_nonce();
     let gp_req = GeneratePasswordRequest::new(&client_id, &nonce_b64);
-    let gp_resp = gp_req.send(&client_id, false)?;
+    let (gp_resp, _) = gp_req.send(&client_id, false)?;
 
     let git_resp = GitCredentialMessage {
         password: Some(gp_resp.password),
