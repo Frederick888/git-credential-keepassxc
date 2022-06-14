@@ -840,15 +840,10 @@ fn real_main() -> Result<()> {
             .or_else(|c| Err(anyhow!("Failed to disable dump, code: {}", c)))?;
     }
 
-    // cannot return error before LOGGER, which is used in main(), has been initialised
-    let maybe_args = cli::MainArgs::try_parse();
+    let args = cli::MainArgs::parse();
 
-    let level = match &maybe_args {
-        Ok(args) => {
-            Level::from_usize(std::cmp::min(6, args.verbose + 2) as usize).unwrap_or(Level::Error)
-        }
-        Err(_) => Level::Debug,
-    };
+    let level =
+        Level::from_usize(std::cmp::min(6, args.verbose + 2) as usize).unwrap_or(Level::Error);
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::FullFormat::new(decorator)
         .build()
@@ -859,11 +854,6 @@ fn real_main() -> Result<()> {
     LOGGER
         .set(logger)
         .map_err(|_| anyhow!("Failed to initialise logger"))?;
-
-    if let Err(e) = maybe_args {
-        return Err(e)?;
-    }
-    let args = maybe_args.unwrap();
 
     #[cfg(all(target_os = "linux", not(debug_assertions)))]
     {
