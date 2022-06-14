@@ -842,7 +842,8 @@ fn real_main() -> Result<()> {
 
     let args = cli::MainArgs::parse();
 
-    let level = Level::from_usize(std::cmp::min(6, args.verbose + 2)).unwrap_or(Level::Error);
+    let level =
+        Level::from_usize(std::cmp::min(6, args.verbose + 2) as usize).unwrap_or(Level::Error);
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::FullFormat::new(decorator)
         .build()

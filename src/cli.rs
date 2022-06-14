@@ -1,6 +1,8 @@
-use anyhow::Error;
-use clap::{Args, Parser, Subcommand};
-use std::str::FromStr;
+use clap::{
+    builder::{NonEmptyStringValueParser, TypedValueParser, ValueParserFactory},
+    ArgAction, Args, Parser, Subcommand,
+};
+use std::{num, str::FromStr};
 
 /// Helper that allows Git and shell scripts to use KeePassXC as credential store
 #[derive(Parser)]
@@ -8,18 +10,18 @@ use std::str::FromStr;
 #[clap(propagate_version = true)]
 pub struct MainArgs {
     /// Specify configuration JSON file path
-    #[clap(short, long)]
+    #[clap(short, long, value_parser)]
     pub config: Option<String>,
     /// Specify KeePassXC socket path (environment variable: KEEPASSXC_BROWSER_SOCKET_PATH)
-    #[clap(short, long)]
+    #[clap(short, long, value_parser)]
     pub socket: Option<String>,
     /// Try unlocking database, applies to get, store and erase only.
     /// Takes one argument in the format of [<MAX_RETRIES>[,<INTERVAL_MS>]]. Use 0 to retry indefinitely. The default interval is 1000ms.
-    #[clap(long, verbatim_doc_comment)]
+    #[clap(long, value_parser, verbatim_doc_comment)]
     pub unlock: Option<UnlockOptions>,
     /// Sets the level of verbosity (-v: WARNING; -vv: INFO; -vvv: DEBUG in debug builds)
-    #[clap(short, parse(from_occurrences))]
-    pub verbose: usize,
+    #[clap(short, action(ArgAction::Count))]
+    pub verbose: u8,
     #[clap(subcommand)]
     pub command: Subcommands,
 }
@@ -69,19 +71,19 @@ pub trait GetOperation {
 #[derive(Args)]
 pub struct SubGetArgs {
     /// Try getting TOTP
-    #[clap(long, conflicts_with = "raw")]
+    #[clap(long, value_parser, conflicts_with = "raw")]
     pub totp: bool,
     /// Do not filter out entries with advanced field 'KPH: git' set to false
-    #[clap(long, conflicts_with = "raw")]
+    #[clap(long, value_parser, conflicts_with = "raw")]
     pub no_filter: bool,
     /// Print advanced fields
-    #[clap(long, conflicts_with = "raw")]
+    #[clap(long, value_parser, conflicts_with = "raw")]
     pub advanced_fields: bool,
     /// Print JSON
-    #[clap(long, conflicts_with = "raw")]
+    #[clap(long, value_parser, conflicts_with = "raw")]
     pub json: bool,
     /// Show raw output from KeePassXC
-    #[clap(long)]
+    #[clap(long, value_parser)]
     pub raw: bool,
 }
 
@@ -115,10 +117,10 @@ impl GetOperation for SubGetArgs {
 #[derive(Args)]
 pub struct SubTotpArgs {
     /// Print JSON
-    #[clap(long, conflicts_with = "raw")]
+    #[clap(long, value_parser, conflicts_with = "raw")]
     pub json: bool,
     /// Show raw output from KeePassXC with entry UUIDs
-    #[clap(long)]
+    #[clap(long, value_parser)]
     pub raw: bool,
 }
 
@@ -148,7 +150,7 @@ impl GetOperation for SubTotpArgs {
 #[derive(Args)]
 pub struct SubStoreArgs {
     /// Do not filter out entries with advanced field 'KPH: git' set to false
-    #[clap(long)]
+    #[clap(long, value_parser)]
     pub no_filter: bool,
 }
 
@@ -164,7 +166,7 @@ pub struct SubLockArgs {}
 #[derive(Args)]
 pub struct SubGeneratePasswordArgs {
     /// Print JSON
-    #[clap(long)]
+    #[clap(long, value_parser)]
     pub json: bool,
 }
 
@@ -172,12 +174,12 @@ pub struct SubGeneratePasswordArgs {
 #[derive(Args)]
 pub struct SubConfigureArgs {
     /// Name of group where new credentials are stored
-    #[clap(long, default_value_t = String::from("Git"))]
+    #[clap(long, value_parser, default_value_t = String::from("Git"))]
     pub group: String,
     /// Encrypt KeePassXC database profiles.
     /// Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
     /// Leave empty ("") to use existing encryption profile in configuration file.
-    #[clap(long, verbatim_doc_comment)]
+    #[clap(long, value_parser, verbatim_doc_comment)]
     pub encrypt: Option<String>,
 }
 
@@ -190,7 +192,7 @@ pub struct SubEditArgs {}
 pub struct SubEncryptArgs {
     /// Encrypt KeePassXC database profiles.
     /// Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
-    #[clap(verbatim_doc_comment)]
+    #[clap(value_parser, verbatim_doc_comment)]
     pub encryption_profile: Option<String>,
 }
 
@@ -216,20 +218,21 @@ pub enum CallerSubcommands {
 #[derive(Args)]
 pub struct SubCallerAddArgs {
     /// Absolute path of the caller executable
+    #[clap(value_parser)]
     pub path: String,
-    #[clap(long)]
+    #[clap(long, value_parser, value_parser)]
     /// UID of the caller process (ignored under Windows)
     pub uid: Option<u32>,
     /// GID of the caller process (ignored under Windows)
-    #[clap(long)]
+    #[clap(long, value_parser, value_parser)]
     pub gid: Option<u32>,
     /// Additionally compare canonical caller paths during verification
-    #[clap(long)]
+    #[clap(long, value_parser, value_parser)]
     pub canonicalize: bool,
     /// Encrypt caller profiles.
     /// Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
     /// Leave empty ("") to use existing encryption profile in configuration file.
-    #[clap(long, verbatim_doc_comment)]
+    #[clap(long, value_parser, verbatim_doc_comment)]
     pub encrypt: Option<String>,
 }
 
@@ -237,18 +240,18 @@ pub struct SubCallerAddArgs {
 #[derive(Args)]
 pub struct SubCallerMeArgs {
     /// Do not save UID in the caller profile
-    #[clap(long)]
+    #[clap(long, value_parser)]
     pub no_uid: bool,
     /// Do not save GID in the caller profile
-    #[clap(long)]
+    #[clap(long, value_parser)]
     pub no_gid: bool,
     /// Additionally compare canonical caller paths during verification
-    #[clap(long)]
+    #[clap(long, value_parser)]
     pub canonicalize: bool,
     /// Encrypt caller profiles.
     /// Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
     /// Leave empty ("") to use existing encryption profile in configuration file.
-    #[clap(long, verbatim_doc_comment)]
+    #[clap(long, value_parser, verbatim_doc_comment)]
     pub encrypt: Option<String>,
 }
 
@@ -256,14 +259,41 @@ pub struct SubCallerMeArgs {
 #[derive(Args)]
 pub struct SubCallerClearArgs {}
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct UnlockOptions {
     pub max_retries: usize,
     pub interval: u64,
 }
 
+impl ValueParserFactory for UnlockOptions {
+    type Parser = UnlockOptionsValueParser;
+
+    fn value_parser() -> Self::Parser {
+        UnlockOptionsValueParser
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct UnlockOptionsValueParser;
+
+impl TypedValueParser for UnlockOptionsValueParser {
+    type Value = UnlockOptions;
+
+    fn parse_ref(
+        &self,
+        cmd: &clap::Command,
+        arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        let inner = NonEmptyStringValueParser::new();
+        let val = inner.parse_ref(cmd, arg, value)?;
+        UnlockOptions::from_str(&val)
+            .map_err(|e| clap::Error::raw(clap::ErrorKind::InvalidValue, e.to_string()))
+    }
+}
+
 impl FromStr for UnlockOptions {
-    type Err = Error;
+    type Err = num::ParseIntError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {
             return Ok(Self {
