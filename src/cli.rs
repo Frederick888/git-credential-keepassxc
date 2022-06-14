@@ -303,7 +303,7 @@ impl FromStr for UnlockOptions {
             });
         }
         let error_map_func =
-            |e: num::ParseIntError| anyhow!("Failed to parse --unlock option: {}", e);
+            |e: num::ParseIntError| anyhow!("Failed to parse --unlock option: {}\n", e);
         let options: Vec<_> = s.split(',').collect();
         let max_retries = usize::from_str(options[0]).map_err(error_map_func)?;
         let options = if options.len() == 1 {
