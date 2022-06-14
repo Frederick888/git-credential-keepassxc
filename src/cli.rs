@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use clap::{
     builder::{NonEmptyStringValueParser, TypedValueParser, ValueParserFactory},
     ArgAction, Args, Parser, Subcommand,
@@ -293,7 +294,7 @@ impl TypedValueParser for UnlockOptionsValueParser {
 }
 
 impl FromStr for UnlockOptions {
-    type Err = num::ParseIntError;
+    type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {
             return Ok(Self {
@@ -301,15 +302,17 @@ impl FromStr for UnlockOptions {
                 interval: 1000,
             });
         }
+        let error_map_func =
+            |e: num::ParseIntError| anyhow!("Failed to parse --unlock option: {}", e);
         let options: Vec<_> = s.split(',').collect();
-        let max_retries = usize::from_str(options[0])?;
+        let max_retries = usize::from_str(options[0]).map_err(error_map_func)?;
         let options = if options.len() == 1 {
             Self {
                 max_retries,
                 interval: 1000,
             }
         } else {
-            let interval = u64::from_str(options[1])?;
+            let interval = u64::from_str(options[1]).map_err(error_map_func)?;
             Self {
                 max_retries,
                 interval,
