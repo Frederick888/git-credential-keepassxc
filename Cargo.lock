@@ -290,6 +290,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_complete"
+version = "3.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f6ebaab5f25e4f0312dfa07cb30a755204b96e6531457c2cfdecfdf5f2adf40"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "clap_derive"
 version = "3.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -686,6 +695,7 @@ dependencies = [
  "anyhow",
  "base64",
  "clap",
+ "clap_complete",
  "crypto_box",
  "directories-next",
  "hmac 0.12.1",

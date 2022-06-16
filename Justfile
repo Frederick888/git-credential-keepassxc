@@ -21,11 +21,13 @@ test-clean:
     [[ -z "$TMPDIR" ]] || rm -f "$TMPDIR"/git-credential-keepassxc.test_*.json
 
 check:
+    cargo check --no-default-features
     for feature in default notification encryption yubikey all; do \
         cargo check --features=$feature; \
     done
 
 clippy:
+    cargo clippy --no-default-features -- -D warnings
     for feature in default notification encryption yubikey all; do \
         cargo clippy --features=$feature -- -D warnings; \
     done
@@ -39,6 +41,7 @@ lint:
     just clippy
 
 build:
+    cargo build --no-default-features
     for feature in default notification encryption yubikey all; do \
         cargo build --release --features=$feature; \
     done

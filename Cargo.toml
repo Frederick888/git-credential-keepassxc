@@ -12,12 +12,13 @@ keywords = ["git", "keepass", "keepassxc", "command-line"]
 categories = ["command-line-utilities", "authentication", "development-tools"]
 
 [features]
-default = []
-all = ["notification", "encryption", "yubikey", "strict-caller"]
+default = ["completion"]
+all = ["notification", "encryption", "yubikey", "strict-caller", "completion"]
 strict-caller = []
 notification = ["notify-rust"]
 encryption = ["aes-gcm/aes"]
 yubikey = ["yubico_manager", "encryption"]
+completion = ["clap_complete"]
 
 [dependencies]
 serde = { version = "1.0.106", features = ["derive"] }
@@ -38,6 +39,7 @@ notify-rust = { version = "4.0.0", optional = true }
 which = "4.0.2"
 strum = { version = "0.24.0", features = ["derive"] }
 num_enum = "0.5.2"
+clap_complete = { version = "3.2.1", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 prctl = "1.0.0"

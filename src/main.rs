@@ -5,6 +5,8 @@ mod keepassxc;
 mod utils;
 
 use anyhow::{anyhow, Result};
+#[cfg(feature = "completion")]
+use clap::IntoApp;
 use clap::Parser;
 use cli::{GetMode, UnlockOptions};
 use config::{Caller, Config, Database};
@@ -833,6 +835,15 @@ fn edit<T: AsRef<Path>>(config_path: T) -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "completion")]
+fn completion(args: &cli::SubCompletionArgs) -> Result<()> {
+    // no need to verify caller for this subcommand
+    let shell = args.shell;
+    let mut cmd = cli::MainArgs::command();
+    clap_complete::generate(shell, &mut cmd, env!("CARGO_BIN_NAME"), &mut io::stdout());
+    Ok(())
+}
+
 fn real_main() -> Result<()> {
     #[cfg(all(target_os = "linux", not(debug_assertions)))]
     {
@@ -907,6 +918,8 @@ fn real_main() -> Result<()> {
         cli::Subcommands::GeneratePassword(generate_password_args) => {
             generate_password(config_path, generate_password_args)
         }
+        #[cfg(feature = "completion")]
+        cli::Subcommands::Completion(completion_args) => completion(completion_args),
     }
 }
 

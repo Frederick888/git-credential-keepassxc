@@ -3,6 +3,8 @@ use clap::{
     builder::{NonEmptyStringValueParser, TypedValueParser, ValueParserFactory},
     ArgAction, Args, Parser, Subcommand,
 };
+#[cfg(feature = "completion")]
+use clap_complete::Shell;
 use std::{num, str::FromStr};
 
 /// Helper that allows Git and shell scripts to use KeePassXC as credential store
@@ -40,6 +42,8 @@ pub enum Subcommands {
     Edit(SubEditArgs),
     Encrypt(SubEncryptArgs),
     Decrypt(SubDecryptArgs),
+    #[cfg(feature = "completion")]
+    Completion(SubCompletionArgs),
 }
 
 impl Subcommands {
@@ -56,6 +60,8 @@ impl Subcommands {
             Self::Edit(_) => "edit",
             Self::Encrypt(_) => "encrypt",
             Self::Decrypt(_) => "decrypt",
+            #[cfg(feature = "completion")]
+            Self::Completion(_) => "completion",
         }
     }
 }
@@ -200,6 +206,13 @@ pub struct SubEncryptArgs {
 /// Decrypt existing database and caller profile(s)
 #[derive(Args)]
 pub struct SubDecryptArgs {}
+
+/// Generate shell completion file
+#[cfg(feature = "completion")]
+#[derive(Args)]
+pub struct SubCompletionArgs {
+    pub shell: Shell,
+}
 
 /// Limit caller process
 #[derive(Args)]
