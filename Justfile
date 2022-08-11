@@ -27,7 +27,7 @@ check:
 
 clippy:
     for feature in default notification encryption yubikey all; do \
-        cargo clippy --features=$feature -- -D warnings; \
+        cargo clippy --features=$feature --locked --tests -- -D warnings; \
     done
 
 check_fmt:
