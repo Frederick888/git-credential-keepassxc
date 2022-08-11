@@ -452,13 +452,11 @@ mod tests {
     }
 
     pub fn test_host_secret_key() -> SecretKey {
-        TEST_HOST_KEY.get_or_init(|| generate_secret_key()).clone()
+        TEST_HOST_KEY.get_or_init(generate_secret_key).clone()
     }
 
     pub fn test_session_secret_key() -> SecretKey {
-        TEST_SESSION_KEY
-            .get_or_init(|| generate_secret_key())
-            .clone()
+        TEST_SESSION_KEY.get_or_init(generate_secret_key).clone()
     }
 
     pub type ExchangeMessageContext =
@@ -530,7 +528,7 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
 
         let wrapper = GenericResponseWrapper {
-            action: action.clone(),
+            action,
             message: Some(base64::encode(
                 host_box.encrypt(&nonce, json.as_bytes()).unwrap(),
             )),
@@ -572,7 +570,7 @@ mod tests {
             "{\"action\":\"get-logins\",\"message\":\"testing\"}".to_owned(),
             "{\"action\":\"set-login\",\"message\":\"testing\"}".to_owned(),
         ];
-        let response = jsons.iter().fold(String::new(), |acc, j| acc + &j);
+        let response = jsons.iter().fold(String::new(), |acc, j| acc + j);
         let results = cut_jsons(&response);
         assert_eq!(jsons.len(), results.len());
         for i in 0..jsons.len() {
@@ -586,7 +584,7 @@ mod tests {
             "{\"action\":\"test-associate\",\"message\":\"\\\"\\[\"}".to_owned(),
             "[{\"action\":\"get-logins\",\"message\":\"testing\\]\"}]".to_owned(),
         ];
-        let response = jsons.iter().fold(String::new(), |acc, j| acc + &j);
+        let response = jsons.iter().fold(String::new(), |acc, j| acc + j);
         let results = cut_jsons(&response);
         assert_eq!(jsons.len(), results.len());
         for i in 0..jsons.len() {
