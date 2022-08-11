@@ -81,12 +81,12 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings
+          args: --locked --tests -- -D warnings
       - name: "Clippy (All Features)"
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --features=all -- -D warnings
+          args: --features=all --locked --tests -- -D warnings
 
       - name: "Test (No Features)"
         uses: actions-rs/cargo@v1

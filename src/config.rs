@@ -846,7 +846,7 @@ mod tests {
     #[cfg(feature = "yubikey")]
     pub static TEST_YUBIKEY_SERIAL: u32 = 1234567;
     #[cfg(feature = "yubikey")]
-    pub static TEST_YUBIKEY_HMAC_SHA1_SECRET: &'static str = "test_secret";
+    pub static TEST_YUBIKEY_HMAC_SHA1_SECRET: &str = "test_secret";
 
     #[test]
     fn test_00_config_read_write_plain_text() {
@@ -862,11 +862,7 @@ mod tests {
         };
         let group = Group::new("mock group", "mock uuid");
         let secret_key = generate_secret_key();
-        let database = Database::new(
-            "mock database".to_owned(),
-            secret_key.clone(),
-            group.clone(),
-        );
+        let database = Database::new("mock database".to_owned(), secret_key.clone(), group);
 
         {
             // write
@@ -901,11 +897,7 @@ mod tests {
         };
         let group = Group::new("mock group", "mock uuid");
         let secret_key = generate_secret_key();
-        let database = Database::new(
-            "mock database".to_owned(),
-            secret_key.clone(),
-            group.clone(),
-        );
+        let database = Database::new("mock database".to_owned(), secret_key.clone(), group);
 
         {
             // write plain text config
@@ -965,7 +957,7 @@ mod tests {
             config.add_encryption("challenge-response").unwrap();
             config.add_caller(caller.clone(), true).unwrap();
             config.add_caller(caller.clone(), true).unwrap();
-            config.add_caller(caller.clone(), false).unwrap();
+            config.add_caller(caller, false).unwrap();
             config.write_to(&config_path).unwrap();
         }
         {
@@ -993,15 +985,11 @@ mod tests {
         };
         let group = Group::new("mock group", "mock uuid");
         let secret_key = generate_secret_key();
-        let database = Database::new(
-            "mock database".to_owned(),
-            secret_key.clone(),
-            group.clone(),
-        );
+        let database = Database::new("mock database".to_owned(), secret_key, group);
 
         {
             let mut config = Config::new();
-            config.add_database(database.clone(), false).unwrap();
+            config.add_database(database, false).unwrap();
             config.write_to(&config_path).unwrap();
         }
         {
@@ -1029,11 +1017,7 @@ mod tests {
         };
         let group = Group::new("mock group", "mock uuid");
         let secret_key = generate_secret_key();
-        let database = Database::new(
-            "mock database".to_owned(),
-            secret_key.clone(),
-            group.clone(),
-        );
+        let database = Database::new("mock database".to_owned(), secret_key, group);
 
         {
             let mut config = Config::new();
@@ -1049,7 +1033,7 @@ mod tests {
         }
         {
             assert!(config_path.exists());
-            let mut database = database.clone();
+            let mut database = database;
             database.id = "mock database 2".to_owned();
             let mut config = Config::read_from(&config_path).unwrap();
             config.add_database(database, false).unwrap();

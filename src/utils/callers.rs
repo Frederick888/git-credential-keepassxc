@@ -116,7 +116,7 @@ impl CurrentCaller {
 mod tests {
     use super::*;
 
-    const MOCK_PROCESS_PATH: &'static str = "/usr/bin/false";
+    const MOCK_PROCESS_PATH: &str = "/usr/bin/false";
 
     #[test]
     fn test_00_path_check() {
