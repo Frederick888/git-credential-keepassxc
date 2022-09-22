@@ -15,12 +15,27 @@ jobs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
       release_id: ${{ steps.create_release.outputs.id }}
     steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Conventional Commit Changelog
+        id: conventional_commits
+        run: |
+          curl -s -L -o./clog.tar.gz https://github.com/clog-tool/clog-cli/releases/download/v0.9.3/clog-v0.9.3-x86_64-unknown-linux-musl.tar.gz
+          tar -xf ./clog.tar.gz
+          chmod +x ./clog
+          # delete current tag locally so clog uses last tag as --from
+          git tag -d "$GITHUB_REF_NAME"
+          echo 'CHANGELOG<<EOF' >> $GITHUB_ENV
+          ./clog -F --setversion="$GITHUB_REF_NAME" >> $GITHUB_ENV
+          echo 'EOF' >> $GITHUB_ENV
       - name: Create Release
         id: create_release
         uses: ncipollo/release-action@v1
         with:
           draft: true
           prerelease: false
+          body: ${{ env.CHANGELOG }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
   build:
@@ -32,7 +47,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Git Commit Hash
         id: git_commit
         run: |
