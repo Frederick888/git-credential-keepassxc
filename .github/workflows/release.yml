@@ -25,10 +25,16 @@ jobs:
           curl -s -L -o./clog.tar.gz https://github.com/clog-tool/clog-cli/releases/download/v0.9.3/clog-v0.9.3-x86_64-unknown-linux-musl.tar.gz
           tar -xf ./clog.tar.gz
           chmod +x ./clog
-          # delete current tag locally so clog uses last tag as --from
+          # delete current tag locally
           git tag -d "$GITHUB_REF_NAME"
+          if [[ "$GITHUB_REF_NAME" == *"-"* ]]; then
+            last_tag="$(git tag -l --sort version:refname | tail -n1)"
+          else
+            last_tag="$(git tag -l --sort version:refname | grep -v -- - | tail -n1)"
+          fi
+          printf 'Using %s as last tag\n' "$last_tag"
           echo 'CHANGELOG<<EOF' >> $GITHUB_ENV
-          ./clog -F --setversion="$GITHUB_REF_NAME" >> $GITHUB_ENV
+          ./clog --from="$last_tag" --setversion="$GITHUB_REF_NAME" >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
       - name: Determine release type
         id: release_type
