@@ -14,6 +14,7 @@ jobs:
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
       release_id: ${{ steps.create_release.outputs.id }}
+      is_pre: ${{ steps.release_type.outputs.is_pre }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -29,12 +30,19 @@ jobs:
           echo 'CHANGELOG<<EOF' >> $GITHUB_ENV
           ./clog -F --setversion="$GITHUB_REF_NAME" >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
+      - name: Determine release type
+        id: release_type
+        shell: bash
+        run: |
+          is_pre='false'
+          [[ "$GITHUB_REF_NAME" == *"-"* ]] && is_pre='true'
+          printf '::set-output name=is_pre::%s\n' "$is_pre"
       - name: Create Release
         id: create_release
         uses: ncipollo/release-action@v1
         with:
           draft: true
-          prerelease: false
+          prerelease: ${{ steps.release_type.outputs.is_pre }}
           body: ${{ env.CHANGELOG }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -202,6 +210,7 @@ jobs:
   publish_release:
     runs-on: ubuntu-latest
     needs: [create_release, build]
+    if: ${{ needs.create_release.outputs.is_pre == 'false' }}
     steps:
       - name: Publish Release
         uses: eregon/publish-release@v1
