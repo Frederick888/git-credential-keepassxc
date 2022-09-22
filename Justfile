@@ -80,7 +80,7 @@ release version:
     @if [[ "{{version}}" == v* ]]; then printf 'Must not have v-prefix\n'; exit 1; fi
     # changelog
     if [[ "{{version}}" != *"-"* ]]; then \
-        last_tag="$(git tag -l --sort version:refname | tail -n1)"; \
+        last_tag="$(git tag -l --sort version:refname | grep -v -- - | tail -n1)"; \
         clog --from="$last_tag" --setversion=v{{version}} -o ./CHANGELOG.md; \
         git add ./CHANGELOG.md; \
     fi
