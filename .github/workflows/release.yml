@@ -14,13 +14,42 @@ jobs:
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
       release_id: ${{ steps.create_release.outputs.id }}
+      is_pre: ${{ steps.release_type.outputs.is_pre }}
     steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Conventional Commit Changelog
+        id: conventional_commits
+        run: |
+          curl -s -L -o./clog.tar.gz https://github.com/clog-tool/clog-cli/releases/download/v0.9.3/clog-v0.9.3-x86_64-unknown-linux-musl.tar.gz
+          tar -xf ./clog.tar.gz
+          chmod +x ./clog
+          # delete current tag locally
+          git tag -d "$GITHUB_REF_NAME"
+          if [[ "$GITHUB_REF_NAME" == *"-"* ]]; then
+            last_tag="$(git tag -l --sort version:refname | tail -n1)"
+          else
+            last_tag="$(git tag -l --sort version:refname | grep -v -- - | tail -n1)"
+          fi
+          printf 'Using %s as last tag\n' "$last_tag"
+          echo 'CHANGELOG<<EOF' >> $GITHUB_ENV
+          ./clog --from="$last_tag" --setversion="$GITHUB_REF_NAME" >> $GITHUB_ENV
+          echo 'EOF' >> $GITHUB_ENV
+      - name: Determine release type
+        id: release_type
+        shell: bash
+        run: |
+          is_pre='false'
+          [[ "$GITHUB_REF_NAME" == *"-"* ]] && is_pre='true'
+          printf '::set-output name=is_pre::%s\n' "$is_pre"
       - name: Create Release
         id: create_release
         uses: ncipollo/release-action@v1
         with:
           draft: true
-          prerelease: false
+          prerelease: ${{ steps.release_type.outputs.is_pre }}
+          body: ${{ env.CHANGELOG }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
   build:
@@ -32,7 +61,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Git Commit Hash
         id: git_commit
         run: |
@@ -187,6 +216,7 @@ jobs:
   publish_release:
     runs-on: ubuntu-latest
     needs: [create_release, build]
+    if: ${{ needs.create_release.outputs.is_pre == 'false' }}
     steps:
       - name: Publish Release
         uses: eregon/publish-release@v1
