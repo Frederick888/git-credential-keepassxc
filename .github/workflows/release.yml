@@ -52,6 +52,87 @@ jobs:
           body: ${{ env.CHANGELOG }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  lint:
+    runs-on: ${{ matrix.os }}
+    continue-on-error: false
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        features: [default, all]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust Toolchain
+        id: rust_toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+          override: true
+          components: rustfmt, clippy
+      - name: Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: lint-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ matrix.features }}-git-${{ github.sha }}
+          restore-keys: |
+            lint-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ matrix.features }}-
+            lint-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-
+            lint-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-
+            lint-${{ runner.os }}-
+      - name: rustfmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: -- --check
+      - name: Clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --features=${{ matrix.features }} --locked --tests -- -D warnings
+
+  test:
+    runs-on: ${{ matrix.os }}
+    continue-on-error: false
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        features:
+          - [default]
+          - [all]
+          - [notification, encryption, yubikey]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust Toolchain
+        id: rust_toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+          override: true
+      - name: Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: test-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ join(matrix.features, '+') }}-git-${{ github.sha }}
+          restore-keys: |
+            test-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ join(matrix.features, '+') }}-
+            test-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-
+            test-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-
+            test-${{ runner.os }}-
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --features=${{ join(matrix.features) }}
+
   build:
     runs-on: ${{ matrix.os }}
     needs: create_release
@@ -59,13 +140,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        features: [default, all]
 
     steps:
       - uses: actions/checkout@v3
-      - name: Git Commit Hash
-        id: git_commit
-        run: |
-          echo "::set-output name=hash::$(git rev-parse HEAD)"
 
       - name: Install Linux Dependencies
         if: contains(matrix.os, 'ubuntu')
@@ -86,7 +164,11 @@ jobs:
           toolchain: stable
           default: true
           override: true
-          components: rustfmt, clippy
+      - name: Add macOS Targets
+        if: contains(matrix.os, 'macos')
+        run: |
+          rustup target add x86_64-apple-darwin
+          rustup target add aarch64-apple-darwin
 
       - name: Cache
         uses: actions/cache@v2
@@ -95,127 +177,91 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-git-${{ steps.git_commit.outputs.hash }}
+          key: build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ matrix.features }}-git-${{ github.sha }}
           restore-keys: |
+            build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ matrix.features }}-
             build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-
             build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-
             build-${{ runner.os }}-
 
-      - name: rustfmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: -- --check
-      - name: "Clippy (No Features)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --locked --tests -- -D warnings
-      - name: "Clippy (All Features)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --features=all --locked --tests -- -D warnings
-
-      - name: "Test (No Features)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release
-      - name: "Test (No strict-caller)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release --features=notification,encryption,yubikey
-      - name: "Test (All Features)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release --features=all
-
-      - name: "Build (No Features)"
+      - name: "Build (Linux/Windows)"
+        if: "!contains(matrix.os, 'macos')"
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release
-      - name: "Pack (No Features)"
-        id: pack_minimal
-        run: |
-          zip -j "./${{ matrix.os }}-minimal.zip" target/release/git-credential-keepassxc target/release/git-credential-keepassxc.exe
-          echo "::set-output name=filename::${{ matrix.os }}-minimal"
-      - name: "Hash (No Features, Unix)"
-        if: "!contains(matrix.os, 'windows')"
-        run: |
-          echo "$(sha256sum ${{ steps.pack_minimal.outputs.filename }}.zip | cut -d ' ' -f 1)" > ${{ steps.pack_minimal.outputs.filename }}.zip.sha256sum
-          cat ${{ steps.pack_minimal.outputs.filename }}.zip.sha256sum
-      - name: "Hash (No Features, Windows)"
-        if: contains(matrix.os, 'windows')
-        run: |
-          $FileHash=(certutil -hashfile ${{ steps.pack_minimal.outputs.filename }}.zip SHA256 | findstr /v hash | findstr /v SHA).replace(" ", "")
-          echo "$FileHash"
-          echo "$FileHash" > ${{ steps.pack_minimal.outputs.filename }}.zip.sha256sum
-      - name: "Upload (No Features)"
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create_release.outputs.upload_url }}
-          asset_path: ./${{ steps.pack_minimal.outputs.filename }}.zip
-          asset_name: ${{ steps.pack_minimal.outputs.filename }}.zip
-          asset_content_type: application/zip
-      - name: "Upload Hash (No Features)"
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create_release.outputs.upload_url }}
-          asset_path: ./${{ steps.pack_minimal.outputs.filename }}.zip.sha256sum
-          asset_name: ${{ steps.pack_minimal.outputs.filename }}.zip.sha256sum
-          asset_content_type: text/plain
-
-      - name: "Build (All Features)"
+          args: --release --features=${{ matrix.features }}
+      - name: "Build (macOS x86_64)"
+        if: contains(matrix.os, 'macos')
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --features=all
-      - name: "Pack (All Features)"
-        id: pack_full
+          args: --release --features=${{ matrix.features }} --target=x86_64-apple-darwin
+      - name: "Build (macOS aarch64)"
+        if: contains(matrix.os, 'macos')
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --features=${{ matrix.features }} --target=aarch64-apple-darwin
+      - name: macOS Universal Binary
+        if: contains(matrix.os, 'macos')
         run: |
-          zip -j "./${{ matrix.os }}-full.zip" target/release/git-credential-keepassxc target/release/git-credential-keepassxc.exe
-          echo "::set-output name=filename::${{ matrix.os }}-full"
-      - name: "Hash (All Features, Unix)"
+          mkdir -p target/release/
+          lipo -create -output target/release/git-credential-keepassxc target/x86_64-apple-darwin/release/git-credential-keepassxc target/aarch64-apple-darwin/release/git-credential-keepassxc
+          file target/release/git-credential-keepassxc
+      - name: Determine artifact name suffix
+        id: artifact_suffix
+        if: "matrix.features == 'default' || matrix.features == 'all'"
+        shell: bash
+        run: |
+          case "${{ matrix.features }}" in
+            default)
+              printf '::set-output name=suffix::%s\n' "minimal"
+              ;;
+            all)
+              printf '::set-output name=suffix::%s\n' "full"
+              ;;
+            *)
+              exit 1
+              ;;
+          esac
+      - name: Pack
+        id: pack
+        run: |
+          zip -j "./${{ matrix.os }}-${{ steps.artifact_suffix.outputs.suffix }}.zip" target/release/git-credential-keepassxc target/release/git-credential-keepassxc.exe
+          echo "::set-output name=filename::${{ matrix.os }}-${{ steps.artifact_suffix.outputs.suffix }}"
+      - name: "Hash (Unix)"
         if: "!contains(matrix.os, 'windows')"
         run: |
-          echo "$(sha256sum ${{ steps.pack_full.outputs.filename }}.zip | cut -d ' ' -f 1)" > ${{ steps.pack_full.outputs.filename }}.zip.sha256sum
-          cat ${{ steps.pack_full.outputs.filename }}.zip.sha256sum
-      - name: "Hash (All Features, Windows)"
+          echo "$(sha256sum ${{ steps.pack.outputs.filename }}.zip | cut -d ' ' -f 1)" > ${{ steps.pack.outputs.filename }}.zip.sha256sum
+          cat ${{ steps.pack.outputs.filename }}.zip.sha256sum
+      - name: "Hash (Windows)"
         if: contains(matrix.os, 'windows')
         run: |
-          $FileHash=(certutil -hashfile ${{ steps.pack_full.outputs.filename }}.zip SHA256 | findstr /v hash | findstr /v SHA).replace(" ", "")
+          $FileHash=(certutil -hashfile ${{ steps.pack.outputs.filename }}.zip SHA256 | findstr /v hash | findstr /v SHA).replace(" ", "")
           echo "$FileHash"
-          echo "$FileHash" > ${{ steps.pack_full.outputs.filename }}.zip.sha256sum
-      - name: "Upload (All Features)"
+          echo "$FileHash" > ${{ steps.pack.outputs.filename }}.zip.sha256sum
+      - name: Upload
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
-          asset_path: ./${{ steps.pack_full.outputs.filename }}.zip
-          asset_name: ${{ steps.pack_full.outputs.filename }}.zip
+          asset_path: ./${{ steps.pack.outputs.filename }}.zip
+          asset_name: ${{ steps.pack.outputs.filename }}.zip
           asset_content_type: application/zip
-      - name: "Upload Hash (All Features)"
+      - name: Upload Hash
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
-          asset_path: ./${{ steps.pack_full.outputs.filename }}.zip.sha256sum
-          asset_name: ${{ steps.pack_full.outputs.filename }}.zip.sha256sum
+          asset_path: ./${{ steps.pack.outputs.filename }}.zip.sha256sum
+          asset_name: ${{ steps.pack.outputs.filename }}.zip.sha256sum
           asset_content_type: text/plain
 
   publish_release:
     runs-on: ubuntu-latest
-    needs: [create_release, build]
+    needs: [create_release, lint, test, build]
     if: ${{ needs.create_release.outputs.is_pre == 'false' }}
     steps:
       - name: Publish Release

@@ -12,6 +12,111 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  cancel_previous:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.10.0
+        with:
+          access_token: ${{ github.token }}
+
+  lint:
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        rust_toolchain: [stable]
+        features: [default, all]
+        experimental: [false]
+        include:
+          - os: ubuntu-latest
+            rust_toolchain: nightly
+            features: all
+            experimental: true
+          - os: macos-latest
+            rust_toolchain: nightly
+            features: all
+            experimental: true
+          - os: windows-latest
+            rust_toolchain: nightly
+            features: all
+            experimental: true
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust Toolchain
+        id: rust_toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust_toolchain }}
+          default: true
+          override: true
+          components: rustfmt, clippy
+      - name: Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: lint-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ matrix.features }}-git-${{ github.sha }}
+          restore-keys: |
+            lint-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ matrix.features }}-
+            lint-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-
+            lint-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-
+            lint-${{ runner.os }}-
+      - name: rustfmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: -- --check
+      - name: Clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --features=${{ matrix.features }} --locked --tests -- -D warnings
+
+  test:
+    runs-on: ${{ matrix.os }}
+    continue-on-error: false
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        rust_toolchain: [stable]
+        features:
+          - [default]
+          - [all]
+          - [notification, encryption, yubikey]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust Toolchain
+        id: rust_toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust_toolchain }}
+          default: true
+          override: true
+      - name: Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: test-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ join(matrix.features, '+') }}-git-${{ github.sha }}
+          restore-keys: |
+            test-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ join(matrix.features, '+') }}-
+            test-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-
+            test-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-
+            test-${{ runner.os }}-
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --features=${{ join(matrix.features) }}
+
   build:
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental }}
@@ -20,31 +125,23 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         rust_toolchain: [stable]
+        features: [default, notification, yubikey, all]
         experimental: [false]
         include:
           - os: ubuntu-latest
             rust_toolchain: nightly
+            features: all
             experimental: true
           - os: macos-latest
             rust_toolchain: nightly
+            features: all
             experimental: true
           - os: windows-latest
             rust_toolchain: nightly
+            features: all
             experimental: true
-
     steps:
       - uses: actions/checkout@v3
-      - name: Git Commit Hash
-        id: git_commit
-        run: |
-          echo "::set-output name=hash::$(git rev-parse HEAD)"
-
-      - name: Cancel Previous Runs
-        if: contains(matrix.os, 'ubuntu')
-        uses: styfle/cancel-workflow-action@0.9.1
-        with:
-          access_token: ${{ github.token }}
-
       - name: Install Linux Dependencies
         if: contains(matrix.os, 'ubuntu')
         run: sudo apt-get install -y libusb-1.0-0 libusb-1.0-0-dev libdbus-1-dev
@@ -61,91 +158,73 @@ jobs:
           toolchain: ${{ matrix.rust_toolchain }}
           default: true
           override: true
-          components: rustfmt, clippy
+      - name: Add macOS Targets
+        if: contains(matrix.os, 'macos')
+        run: |
+          rustup target add x86_64-apple-darwin
+          rustup target add aarch64-apple-darwin
 
       - name: Cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-git-${{ steps.git_commit.outputs.hash }}
+          key: build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ matrix.features }}-git-${{ github.sha }}
           restore-keys: |
+            build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ matrix.features }}-
             build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-
             build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-
             build-${{ runner.os }}-
 
-      - name: rustfmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: -- --check
-      - name: "Clippy (No Features)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --locked --tests -- -D warnings
-      - name: "Clippy (All Features)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --features=all --locked --tests -- -D warnings
-
-      - name: "Build (No Features)"
+      - name: "Build (Linux/Windows)"
+        if: "!contains(matrix.os, 'macos')"
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release
-      - name: "Artifacts (No Features)"
-        uses: actions/upload-artifact@v2
+          args: --release --features=${{ matrix.features }}
+      - name: "Build (macOS x86_64)"
+        if: contains(matrix.os, 'macos')
+        uses: actions-rs/cargo@v1
         with:
-          name: ${{ matrix.os }}-${{ matrix.rust_toolchain }}-minimal
+          command: build
+          args: --release --features=${{ matrix.features }} --target=x86_64-apple-darwin
+      - name: "Build (macOS aarch64)"
+        if: contains(matrix.os, 'macos')
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --features=${{ matrix.features }} --target=aarch64-apple-darwin
+      - name: macOS Universal Binary
+        if: contains(matrix.os, 'macos')
+        run: |
+          mkdir -p target/release/
+          lipo -create -output target/release/git-credential-keepassxc target/x86_64-apple-darwin/release/git-credential-keepassxc target/aarch64-apple-darwin/release/git-credential-keepassxc
+          file target/release/git-credential-keepassxc
+
+      - name: Determine artifact name suffix
+        id: artifact_suffix
+        if: "matrix.features == 'default' || matrix.features == 'all'"
+        shell: bash
+        run: |
+          case "${{ matrix.features }}" in
+            default)
+              printf '::set-output name=suffix::%s\n' "minimal"
+              ;;
+            all)
+              printf '::set-output name=suffix::%s\n' "full"
+              ;;
+            *)
+              exit 1
+              ;;
+          esac
+      - name: Artifacts
+        if: "matrix.features == 'default' || matrix.features == 'all'"
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.os }}-${{ matrix.rust_toolchain }}-${{ steps.artifact_suffix.outputs.suffix }}
           retention-days: 60
           path: |
             target/release/git-credential-keepassxc
             target/release/git-credential-keepassxc.exe
-      - name: "Build (notification)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --features=notification
-      - name: "Build (encryption)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --features=encryption
-      - name: "Build (yubikey)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --features=yubikey
-      - name: "Build (all)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --features=all
-      - name: "Artifacts (All Features)"
-        uses: actions/upload-artifact@v2
-        with:
-          name: ${{ matrix.os }}-${{ matrix.rust_toolchain }}-full
-          retention-days: 60
-          path: |
-            target/release/git-credential-keepassxc
-            target/release/git-credential-keepassxc.exe
-
-      - name: "Test (No Features)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release
-      - name: "Test (No strict-caller)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release --features=notification,encryption,yubikey
-      - name: "Test (All Features)"
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release --features=all
