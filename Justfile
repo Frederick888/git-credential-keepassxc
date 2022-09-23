@@ -70,7 +70,7 @@ update:
         else \
             just test || exit 1; \
             git add Cargo.lock; \
-            printf 'Upgrade dependencies\n\n%s\n' "$UPDATED_CRATES" | git commit -F -; \
+            printf 'chore: Upgrade dependencies\n\n%s\n' "$UPDATED_CRATES" | git commit -F -; \
         fi
     @printf 'Running cargo outdated\n'
     cargo outdated --features all -R
