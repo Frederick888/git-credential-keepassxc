@@ -16,7 +16,7 @@ use std::string::ToString;
 
 #[cfg(feature = "encryption")]
 use {
-    aes_gcm::aead::{Aead, NewAead},
+    aes_gcm::aead::Aead,
     aes_gcm::Aes256Gcm,
     rand::distributions::Alphanumeric,
     rand::{thread_rng, Rng},
@@ -296,6 +296,7 @@ impl Config {
 
     #[cfg(feature = "encryption")]
     fn base64_decrypt_with(data: &str, key: &AesKey, nonce: &AesNonce) -> Result<Vec<u8>> {
+        use aes_gcm::KeyInit;
         let aead = Aes256Gcm::new(key);
 
         let decrypted = aead
@@ -322,6 +323,7 @@ impl Config {
 
     #[cfg(feature = "encryption")]
     fn base64_encrypt_with(data: &[u8], key: &AesKey, nonce: &AesNonce) -> Result<String> {
+        use aes_gcm::KeyInit;
         let aead = Aes256Gcm::new(key);
 
         let encrypted = aead
