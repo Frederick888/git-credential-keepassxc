@@ -34,10 +34,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: Git Commit Hash
-        id: git_commit
-        run: |
-          echo "::set-output name=hash::$(git rev-parse HEAD)"
 
       - name: Cancel Previous Runs
         if: contains(matrix.os, 'ubuntu')
@@ -75,7 +71,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-git-${{ steps.git_commit.outputs.hash }}
+          key: build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-git-${{ github.sha }}
           restore-keys: |
             build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-lock-${{ hashFiles('Cargo.lock') }}-
             build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.rustc_hash }}-
