@@ -87,6 +87,11 @@ jobs:
           default: true
           override: true
           components: rustfmt, clippy
+      - name: Add macOS Targets
+        if: contains(matrix.os, 'macos')
+        run: |
+          rustup target add x86_64-apple-darwin
+          rustup target add aarch64-apple-darwin
 
       - name: Cache
         uses: actions/cache@v2
@@ -133,11 +138,30 @@ jobs:
           command: test
           args: --release --features=all
 
-      - name: "Build (No Features)"
+      - name: "Build (No Features, Linux/Windows)"
+        if: "!contains(matrix.os, 'macos')"
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --release
+      - name: "Build (No Features, macOS x86_64)"
+        if: contains(matrix.os, 'macos')
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target=x86_64-apple-darwin
+      - name: "Build (No Features, macOS aarch64)"
+        if: contains(matrix.os, 'macos')
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target=aarch64-apple-darwin
+      - name: macOS Universal Binary (No Features)
+        if: contains(matrix.os, 'macos')
+        run: |
+          mkdir -p target/release/
+          lipo -create -output target/release/git-credential-keepassxc target/x86_64-apple-darwin/release/git-credential-keepassxc target/aarch64-apple-darwin/release/git-credential-keepassxc
+          file target/release/git-credential-keepassxc
       - name: "Pack (No Features)"
         id: pack_minimal
         run: |
@@ -173,11 +197,30 @@ jobs:
           asset_name: ${{ steps.pack_minimal.outputs.filename }}.zip.sha256sum
           asset_content_type: text/plain
 
-      - name: "Build (All Features)"
+      - name: "Build (All Features, Linux/Windows)"
+        if: "!contains(matrix.os, 'macos')"
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --release --features=all
+      - name: "Build (all, macOS x86_64)"
+        if: contains(matrix.os, 'macos')
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --features=all --target=x86_64-apple-darwin
+      - name: "Build (all, macOS aarch64)"
+        if: contains(matrix.os, 'macos')
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --features=all --target=aarch64-apple-darwin
+      - name: macOS Universal Binary (all)
+        if: contains(matrix.os, 'macos')
+        run: |
+          mkdir -p target/release/
+          lipo -create -output target/release/git-credential-keepassxc target/x86_64-apple-darwin/release/git-credential-keepassxc target/aarch64-apple-darwin/release/git-credential-keepassxc
+          file target/release/git-credential-keepassxc
       - name: "Pack (All Features)"
         id: pack_full
         run: |
