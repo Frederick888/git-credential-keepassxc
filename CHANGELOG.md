@@ -4,7 +4,4 @@
 
 #### Bug Fixes
 
-*   Address windows crate vulnerability ([0084e80c](0084e80c))
-
-
-
+*   Address windows crate vulnerability ([0084e80c](https://github.com/Frederick888/git-credential-keepassxc/commit/0084e80cc8a65355f7190eb07b0f2431a1fe7381))
