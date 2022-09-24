@@ -3,7 +3,7 @@ pub mod callers;
 use anyhow::{anyhow, Context, Error, Result};
 use crypto_box::{
     self,
-    aead::{generic_array, Aead},
+    aead::{generic_array, Aead, AeadCore},
     PublicKey, SalsaBox, SecretKey, KEY_SIZE,
 };
 #[cfg(test)]
@@ -402,7 +402,7 @@ type NaClNonce = generic_array::GenericArray<u8, generic_array::typenum::U24>;
 
 pub fn nacl_nonce() -> (NaClNonce, String) {
     let mut rng = rand::thread_rng();
-    let nonce = crypto_box::generate_nonce(&mut rng);
+    let nonce = crypto_box::SalsaBox::generate_nonce(&mut rng);
     let nonce_b64 = base64::encode(nonce);
     (nonce, nonce_b64)
 }
