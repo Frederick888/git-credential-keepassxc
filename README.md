@@ -63,6 +63,8 @@ A group (by default `Git`) will be created to store new logins.
 
 For more options, run `git-credential-keepassxc -h` to show the help message.
 
+***NB*** If you plan to fetch or push Git repositories, you may want to configure [Ignoring certain entries](#ignoring-certain-entries) to avoid potential **data loss**.
+
 ## Limiting callers
 
 `git-credential-keepassxc` allows you to limit callers (though you should probably have a look at some [MAC](https://en.wikipedia.org/wiki/Mandatory_access_control) systems to properly achieve this), for instance:
@@ -122,6 +124,8 @@ Although currently it's not possible to return entries only from the Git group, 
 0. Open the entry you'd like to hide
 0. Go to Advanced
 0. Add an additional attribute `KPH: git` (the space after colon is necessary) of which the value is `false`
+
+This also prevents these entries from being overwritten by `git-credential-keepassxc`, especially if you are pulling/pushing from/to a Git repository in which case Git sometimes tries to update passwords.
 
 ## Scripting
 
