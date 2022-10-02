@@ -156,6 +156,18 @@ impl GitCredentialMessage {
             ))
         }
     }
+
+    pub fn is_http(&self) -> bool {
+        if let Some(protocol) = &self.protocol {
+            let protocol = protocol.to_ascii_lowercase();
+            return protocol == "http" || protocol == "https";
+        }
+        if let Some(url) = &self.url {
+            let url = url.to_ascii_lowercase();
+            return url.starts_with("http://") || url.starts_with("https://");
+        }
+        false
+    }
 }
 
 #[cfg(test)]
@@ -197,5 +209,16 @@ mod tests {
             .collect();
         message.set_string_fields(&advanced_fields);
         assert_eq!(string1 + &string2 + "\n", message.to_string());
+    }
+
+    #[test]
+    fn test_03_is_http() {
+        let string = "url=https://example.com\n".to_owned();
+        let message = GitCredentialMessage::from_str(string.as_str()).unwrap();
+        assert!(message.is_http());
+
+        let string = "protocol=http\nhost=example.com\n".to_owned();
+        let message = GitCredentialMessage::from_str(string.as_str()).unwrap();
+        assert!(message.is_http());
     }
 }

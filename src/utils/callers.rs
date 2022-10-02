@@ -7,6 +7,19 @@ use std::ops::Deref;
 use std::path::PathBuf;
 use sysinfo::{get_current_pid, PidExt, ProcessExt, RefreshKind, System, SystemExt};
 
+const GIT_HTTP_EXECUTABLES: &[&str] = &[
+    "git",
+    "git-http-backend",
+    "git-http-fetch",
+    "git-http-push",
+    "git-remote-http",
+    "git.exe",
+    "git-http-backend.exe",
+    "git-http-fetch.exe",
+    "git-http-push.exe",
+    "git-remote-http.exe",
+];
+
 pub struct CurrentCaller {
     pub path: PathBuf,
     pub pid: u32,
@@ -109,6 +122,12 @@ impl CurrentCaller {
             command += " --encrypt \"\"";
         }
         command + " " + &self.path.to_string_lossy()
+    }
+
+    pub fn may_be_git_http(&self) -> bool {
+        self.path.file_name().map_or(false, |file_name| {
+            GIT_HTTP_EXECUTABLES.contains(&file_name.to_string_lossy().to_string().as_str())
+        })
     }
 }
 
@@ -315,5 +334,29 @@ mod tests {
             assert!(!current_caller.path.to_string_lossy().is_empty());
             assert!(current_caller.pid > 0);
         }
+    }
+
+    #[test]
+    fn test_06_is_git_http() {
+        let mut current_caller = CurrentCaller {
+            path: if cfg!(target_os = "windows") {
+                PathBuf::from("C:\\Program Files\\Git\\cmd\\git.exe")
+            } else {
+                PathBuf::from("/usr/lib/git-core/git")
+            },
+            pid: 123,
+            #[cfg(unix)]
+            uid: 0,
+            #[cfg(unix)]
+            gid: 0,
+            canonical_path: None,
+        };
+        assert!(current_caller.may_be_git_http());
+        current_caller.path = if cfg!(target_os = "windows") {
+            PathBuf::from("C:\\Program Files\\Git\\cmd\\git-send-email.exe")
+        } else {
+            PathBuf::from("/usr/lib/git-core/git-send-email")
+        };
+        assert!(!current_caller.may_be_git_http());
     }
 }

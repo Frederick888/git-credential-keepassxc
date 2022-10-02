@@ -446,6 +446,7 @@ impl GetLoginsRequest {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LoginEntry {
+    pub group: String,
     pub login: String,
     pub name: String,
     pub password: String,

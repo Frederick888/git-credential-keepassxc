@@ -5,6 +5,8 @@ use clap::{
 };
 use std::{num, str::FromStr};
 
+use crate::{git::GitCredentialMessage, utils::callers::CurrentCaller};
+
 /// Helper that allows Git and shell scripts to use KeePassXC as credential store
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -60,9 +62,16 @@ impl Subcommands {
     }
 }
 
-pub trait GetOperation {
+pub trait HasEntryFilters {
+    fn filters(
+        &self,
+        credential_message: &GitCredentialMessage,
+        current_caller: &CurrentCaller,
+    ) -> EntryFilters;
+}
+
+pub trait GetOperation: HasEntryFilters {
     fn get_mode(&self) -> GetMode;
-    fn no_filter(&self) -> bool;
     fn advanced_fields(&self) -> bool;
     fn json(&self) -> bool;
     fn raw(&self) -> bool;
@@ -77,6 +86,12 @@ pub struct SubGetArgs {
     /// Do not filter out entries with advanced field 'KPH: git' set to false
     #[clap(long, value_parser, conflicts_with = "raw")]
     pub no_filter: bool,
+    /// Do not try using entries from dedicated group only for HTTP Git operations
+    #[clap(long, value_parser, conflicts_with = "raw")]
+    pub no_git_detection: bool,
+    /// Use specified KeePassXC group only, overrides Git detection
+    #[clap(long, value_parser, conflicts_with = "raw")]
+    pub group: Option<String>,
     /// Print advanced fields
     #[clap(long, value_parser, conflicts_with = "raw")]
     pub advanced_fields: bool,
@@ -88,6 +103,25 @@ pub struct SubGetArgs {
     pub raw: bool,
 }
 
+impl SubGetArgs {
+    fn group_filter(
+        &self,
+        credential_message: &GitCredentialMessage,
+        current_caller: &CurrentCaller,
+    ) -> GroupFilter {
+        if let Some(group) = &self.group {
+            return GroupFilter::Argument(group.clone());
+        }
+        if self.no_git_detection {
+            return GroupFilter::Disabled;
+        }
+        if current_caller.may_be_git_http() && credential_message.is_http() {
+            return GroupFilter::Database;
+        }
+        GroupFilter::Disabled
+    }
+}
+
 impl GetOperation for SubGetArgs {
     fn get_mode(&self) -> GetMode {
         if self.totp {
@@ -95,10 +129,6 @@ impl GetOperation for SubGetArgs {
         } else {
             GetMode::PasswordOnly
         }
-    }
-
-    fn no_filter(&self) -> bool {
-        self.no_filter
     }
 
     fn advanced_fields(&self) -> bool {
@@ -111,6 +141,19 @@ impl GetOperation for SubGetArgs {
 
     fn raw(&self) -> bool {
         self.raw
+    }
+}
+
+impl HasEntryFilters for SubGetArgs {
+    fn filters(
+        &self,
+        credential_message: &GitCredentialMessage,
+        current_caller: &CurrentCaller,
+    ) -> EntryFilters {
+        EntryFilters {
+            kph: !self.no_filter,
+            group: self.group_filter(credential_message, current_caller),
+        }
     }
 }
 
@@ -130,10 +173,6 @@ impl GetOperation for SubTotpArgs {
         GetMode::TotpOnly
     }
 
-    fn no_filter(&self) -> bool {
-        false
-    }
-
     fn advanced_fields(&self) -> bool {
         false
     }
@@ -147,12 +186,59 @@ impl GetOperation for SubTotpArgs {
     }
 }
 
+impl HasEntryFilters for SubTotpArgs {
+    fn filters(&self, _: &GitCredentialMessage, _: &CurrentCaller) -> EntryFilters {
+        EntryFilters {
+            kph: true,
+            group: GroupFilter::Disabled,
+        }
+    }
+}
+
 /// Store credential (used by Git)
 #[derive(Args)]
 pub struct SubStoreArgs {
     /// Do not filter out entries with advanced field 'KPH: git' set to false
     #[clap(long, value_parser)]
     pub no_filter: bool,
+    /// Do not try using entries from dedicated group only for HTTP Git operations
+    #[clap(long, value_parser)]
+    pub no_git_detection: bool,
+    /// Use specified KeePassXC group only, overrides Git detection
+    #[clap(long, value_parser)]
+    pub group: Option<String>,
+}
+
+impl SubStoreArgs {
+    fn group_filter(
+        &self,
+        credential_message: &GitCredentialMessage,
+        current_caller: &CurrentCaller,
+    ) -> GroupFilter {
+        if let Some(group) = &self.group {
+            return GroupFilter::Argument(group.clone());
+        }
+        if self.no_git_detection {
+            return GroupFilter::Disabled;
+        }
+        if current_caller.may_be_git_http() && credential_message.is_http() {
+            return GroupFilter::Database;
+        }
+        GroupFilter::Disabled
+    }
+}
+
+impl HasEntryFilters for SubStoreArgs {
+    fn filters(
+        &self,
+        credential_message: &GitCredentialMessage,
+        current_caller: &CurrentCaller,
+    ) -> EntryFilters {
+        EntryFilters {
+            kph: !self.no_filter,
+            group: self.group_filter(credential_message, current_caller),
+        }
+    }
 }
 
 /// [Not implemented] Erase credential (used by Git)
@@ -327,4 +413,15 @@ pub enum GetMode {
     PasswordOnly,
     PasswordAndTotp,
     TotpOnly,
+}
+
+pub struct EntryFilters {
+    pub kph: bool,
+    pub group: GroupFilter,
+}
+
+pub enum GroupFilter {
+    Argument(String),
+    Database,
+    Disabled,
 }

@@ -6,7 +6,7 @@ mod utils;
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
-use cli::{GetMode, UnlockOptions};
+use cli::{EntryFilters, GetMode, GroupFilter, HasEntryFilters, UnlockOptions};
 use config::{Caller, Config, Database};
 use crypto_box::{PublicKey, SecretKey};
 use git::GitCredentialMessage;
@@ -355,16 +355,16 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &cli::SubCallerArgs) -> Result<(
     }
 }
 
-fn verify_caller(config: &Config) -> Result<Option<CurrentCaller>> {
+fn verify_caller(config: &Config) -> Result<CurrentCaller> {
+    let current_caller = CurrentCaller::new()?;
     if config.count_callers() == 0
         && (cfg!(not(feature = "strict-caller")) || config.count_databases() == 0)
     {
         info!(
             "Caller verification skipped as no caller profiles defined and strict-caller disabled"
         );
-        return Ok(None);
+        return Ok(current_caller);
     }
-    let current_caller = CurrentCaller::new()?;
     let callers = config.get_callers()?;
     let matching_callers = callers
         .iter()
@@ -391,7 +391,7 @@ fn verify_caller(config: &Config) -> Result<Option<CurrentCaller>> {
         );
         Err(anyhow!(error_message))
     } else {
-        Ok(Some(current_caller))
+        Ok(current_caller)
     }
 }
 
@@ -401,6 +401,7 @@ fn get_logins_for<T: AsRef<str>>(
     config: &Config,
     client_id: T,
     url: T,
+    filters: &EntryFilters,
     unlock_options: &Option<UnlockOptions>,
 ) -> Result<(Vec<LoginEntry>, String)> {
     let databases = associated_databases(config, client_id.as_ref(), unlock_options)?;
@@ -413,11 +414,32 @@ fn get_logins_for<T: AsRef<str>>(
     let gl_req = GetLoginsRequest::new(url.as_ref(), None, None, &id_key_pairs[..]);
     let (gl_resp, gl_resp_raw) = gl_req.send(client_id.as_ref(), false)?;
 
-    let login_entries: Vec<_> = gl_resp
+    let mut login_entries: Vec<_> = gl_resp
         .entries
         .into_iter()
         .filter(|e| e.expired.is_none() || !e.expired.as_ref().unwrap().0)
         .collect();
+
+    if filters.kph {
+        let num_entries = login_entries.len();
+        login_entries.retain(filter_kph);
+        let num_filtered = num_entries - login_entries.len();
+        if num_filtered > 0 {
+            info!(
+                "{} login(s) were filtered out due to having label KPH: git == false",
+                num_filtered
+            );
+        }
+    }
+    {
+        let num_entries = login_entries.len();
+        login_entries.retain(|login_entry| filter_group(login_entry, &filters.group, &databases));
+        let num_filtered = num_entries - login_entries.len();
+        if num_filtered > 0 {
+            info!("{} login(s) were filtered out by group", num_filtered);
+        }
+    }
+
     Ok((login_entries, gl_resp_raw))
 }
 
@@ -433,32 +455,36 @@ fn get_totp_for<T: AsRef<str>>(client_id: T, uuid: T) -> Result<GetTotpResponse>
     }
 }
 
-fn filter_kph_logins(login_entries: &[LoginEntry], skip: bool) -> (u32, Vec<&LoginEntry>) {
-    let mut kph_false = 0u32;
-    if skip {
-        return (kph_false, login_entries.iter().collect());
-    }
-    let login_entries: Vec<&LoginEntry> = login_entries
-        .iter()
-        .filter(|entry| {
-            if let Some(ref string_fields) = entry.string_fields {
-                let kph_false_fields = string_fields.iter().find(|m| {
-                    if let Some(v) = m.get("KPH: git") {
-                        v == "false"
-                    } else {
-                        false
-                    }
-                });
-                if kph_false_fields.is_some() {
-                    kph_false += 1;
-                }
-                kph_false_fields.is_none()
+fn filter_kph(login_entry: &LoginEntry) -> bool {
+    if let Some(ref string_fields) = login_entry.string_fields {
+        let kph_false_fields = string_fields.iter().find(|m| {
+            if let Some(v) = m.get("KPH: git") {
+                v == "false"
             } else {
-                true
+                false
             }
-        })
-        .collect();
-    (kph_false, login_entries)
+        });
+        kph_false_fields.is_none()
+    } else {
+        true
+    }
+}
+
+fn filter_group(
+    login_entry: &LoginEntry,
+    group_filter: &GroupFilter,
+    databases: &[Database],
+) -> bool {
+    match group_filter {
+        GroupFilter::Disabled => true,
+        GroupFilter::Argument(group) => login_entry.group.is_empty() || &login_entry.group == group,
+        GroupFilter::Database => {
+            login_entry.group.is_empty()
+                || databases
+                    .iter()
+                    .any(|database| login_entry.group == database.group)
+        }
+    }
 }
 
 fn get_logins<T, A>(config_path: T, unlock_options: &Option<UnlockOptions>, args: &A) -> Result<()>
@@ -467,40 +493,39 @@ where
     A: cli::GetOperation,
 {
     let config = Config::read_from(config_path.as_ref())?;
-    let _current_caller = verify_caller(&config)?;
+    let current_caller = verify_caller(&config)?;
     // read credential request
     let git_req = GitCredentialMessage::from_stdin()?;
     let url = git_req.get_url()?;
 
     #[cfg(feature = "notification")]
     {
-        if let Some(current_caller) = _current_caller {
-            use notify_rust::{Notification, Timeout};
-            let notification = Notification::new()
-                .summary("Credential request")
-                .body(&format!(
-                    "{} ({}) has requested credential for {}",
-                    current_caller
-                        .path
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy(),
-                    current_caller.pid,
-                    url
-                ))
-                .timeout(Timeout::Milliseconds(6000))
-                .show();
-            if let Err(e) = notification {
-                warn!("Failed to show notification for credential request, {}", e);
-            }
+        use notify_rust::{Notification, Timeout};
+        let notification = Notification::new()
+            .summary("Credential request")
+            .body(&format!(
+                "{} ({}) has requested credential for {}",
+                current_caller
+                    .path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy(),
+                current_caller.pid,
+                url
+            ))
+            .timeout(Timeout::Milliseconds(6000))
+            .show();
+        if let Err(e) = notification {
+            warn!("Failed to show notification for credential request, {}", e);
         }
     }
 
     // start session
     let (client_id, _, _) = start_session()?;
 
-    let (login_entries, login_entries_raw) =
-        get_logins_for(&config, &client_id, &url, unlock_options)?;
+    let entry_filters = args.filters(&git_req, &current_caller);
+    let (mut login_entries, login_entries_raw) =
+        get_logins_for(&config, &client_id, &url, &entry_filters, unlock_options)?;
     info!("KeePassXC returned {} login(s)", login_entries.len());
 
     if args.raw() {
@@ -532,10 +557,6 @@ where
         return Ok(());
     }
 
-    let (kph_false, mut login_entries) = filter_kph_logins(&login_entries, args.no_filter());
-    if kph_false > 0 {
-        info!("{} login(s) were labelled as KPH: git == false", kph_false);
-    }
     if login_entries.is_empty() {
         return Err(anyhow!("No matching logins found"));
     }
@@ -604,7 +625,7 @@ fn store_login<T: AsRef<Path>>(
     args: &cli::SubStoreArgs,
 ) -> Result<()> {
     let config = Config::read_from(config_path.as_ref())?;
-    verify_caller(&config)?;
+    let current_caller = verify_caller(&config)?;
     // read credential request
     let git_req = GitCredentialMessage::from_stdin()?;
     let url = git_req.get_url()?;
@@ -618,17 +639,13 @@ fn store_login<T: AsRef<Path>>(
         return Err(anyhow!("Password is missing"));
     }
 
-    let login_entries =
-        get_logins_for(&config, &client_id, &url, unlock_options).and_then(|(entries, _)| {
-            let (kph_false, entries) = filter_kph_logins(&entries, args.no_filter);
-            if kph_false > 0 {
-                info!("{} login(s) were labelled as KPH: git == false", kph_false);
-            }
+    let entry_filters = args.filters(&git_req, &current_caller);
+    let login_entries = get_logins_for(&config, &client_id, &url, &entry_filters, unlock_options)
+        .and_then(|(entries, _)| {
             let username = git_req.username.as_ref().unwrap();
             let entries: Vec<_> = entries
                 .into_iter()
                 .filter(|entry| entry.login == *username)
-                .cloned()
                 .collect();
             info!(
                 "{} login(s) left after filtering by username",
@@ -636,10 +653,7 @@ fn store_login<T: AsRef<Path>>(
             );
             if entries.is_empty() {
                 // this Err is never used
-                Err(anyhow!(
-                    "No remaining logins after filtering out {} KPH: git == false one(s)",
-                    kph_false
-                ))
+                Err(anyhow!("Failed to find entry to update"))
             } else {
                 Ok(entries)
             }
