@@ -3,6 +3,7 @@ use crate::{debug, error, info, warn};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt;
+use std::io::{self, Read};
 use std::str::FromStr;
 
 const KPXC_ADVANCED_FIELD_PREFIX: &str = "KPH: ";
@@ -109,6 +110,16 @@ message_from_to_string!(
 );
 
 impl GitCredentialMessage {
+    pub fn from_stdin() -> anyhow::Result<Self> {
+        let git_req = {
+            let mut git_req_string = String::with_capacity(256);
+            io::stdin().read_to_string(&mut git_req_string)?;
+            GitCredentialMessage::from_str(&git_req_string)?
+        };
+        debug!("Git credential request: {:?}", git_req);
+        Ok(git_req)
+    }
+
     pub fn set_string_fields(&mut self, login_entry_fields: &[HashMap<String, String>]) {
         let mut result = HashMap::new();
         login_entry_fields.iter().for_each(|login_entry_field| {
@@ -126,6 +137,24 @@ impl GitCredentialMessage {
             }
         });
         self.string_fields = Some(result);
+    }
+
+    pub fn get_url(&self) -> anyhow::Result<String> {
+        if let Some(ref url_string) = self.url {
+            Ok(url_string.clone())
+        } else {
+            if self.protocol.is_none() || self.host.is_none() {
+                return Err(anyhow::anyhow!(
+                    "Protocol and host are both required when URL is not provided"
+                ));
+            }
+            Ok(format!(
+                "{}://{}/{}",
+                self.protocol.as_deref().unwrap(),
+                self.host.as_deref().unwrap(),
+                self.path.as_deref().unwrap_or("")
+            ))
+        }
     }
 }
 

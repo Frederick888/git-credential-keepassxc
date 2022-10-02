@@ -14,12 +14,11 @@ use keepassxc::{errors::*, messages::*, Group};
 use once_cell::sync::OnceCell;
 use slog::{Drain, Level, Logger};
 use std::env;
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
 use utils::callers::CurrentCaller;
@@ -51,34 +50,6 @@ fn start_session() -> Result<(String, SecretKey, PublicKey)> {
     let _ = get_client_box(Some(&host_pubkey), Some(&session_seckey));
 
     Ok((client_id, session_seckey, host_pubkey))
-}
-
-fn read_git_request() -> Result<(GitCredentialMessage, String)> {
-    // read credential request
-    let git_req = {
-        let mut git_req_string = String::with_capacity(256);
-        io::stdin().read_to_string(&mut git_req_string)?;
-        GitCredentialMessage::from_str(&git_req_string)?
-    };
-    debug!("Git credential request: {:?}", git_req);
-    let url = {
-        if let Some(ref url_string) = git_req.url {
-            url_string.clone()
-        } else {
-            if git_req.protocol.is_none() || git_req.host.is_none() {
-                return Err(anyhow!(
-                    "Protocol and host are both required when URL is not provided"
-                ));
-            }
-            format!(
-                "{}://{}/{}",
-                git_req.protocol.as_deref().unwrap(),
-                git_req.host.as_deref().unwrap(),
-                git_req.path.as_deref().unwrap_or("")
-            )
-        }
-    };
-    Ok((git_req, url))
 }
 
 fn associated_databases<T: AsRef<str>>(
@@ -498,7 +469,8 @@ where
     let config = Config::read_from(config_path.as_ref())?;
     let _current_caller = verify_caller(&config)?;
     // read credential request
-    let (git_req, url) = read_git_request()?;
+    let git_req = GitCredentialMessage::from_stdin()?;
+    let url = git_req.get_url()?;
 
     #[cfg(feature = "notification")]
     {
@@ -634,7 +606,8 @@ fn store_login<T: AsRef<Path>>(
     let config = Config::read_from(config_path.as_ref())?;
     verify_caller(&config)?;
     // read credential request
-    let (git_req, url) = read_git_request()?;
+    let git_req = GitCredentialMessage::from_stdin()?;
+    let url = git_req.get_url()?;
     // start session
     let (client_id, _, _) = start_session()?;
 
@@ -738,7 +711,7 @@ fn erase_login() -> Result<()> {
     // not desirable since sometimes it's merely a configuration issue, e.g. a lot of Git servers
     // reject logins over HTTP(S) when SSH keys have been uploaded
     error!("KeePassXC doesn't allow erasing logins via socket at the time of writing");
-    let _ = read_git_request();
+    let _ = GitCredentialMessage::from_stdin()?;
     Ok(())
 }
 
