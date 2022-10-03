@@ -18,10 +18,19 @@ pub struct MainArgs {
     /// Specify KeePassXC socket path (environment variable: KEEPASSXC_BROWSER_SOCKET_PATH)
     #[clap(short, long, value_parser)]
     pub socket: Option<String>,
-    /// Try unlocking database, applies to get, store and erase only.
+    /// Try unlocking database. Applies to get and store only.
     /// Takes one argument in the format of [<MAX_RETRIES>[,<INTERVAL_MS>]]. Use 0 to retry indefinitely. The default interval is 1000ms.
     #[clap(long, value_parser, verbatim_doc_comment)]
     pub unlock: Option<UnlockOptions>,
+    /// Do not filter out entries with advanced field 'KPH: git' set to false. Applies to get and store only
+    #[clap(long, value_parser, global = true)]
+    pub no_filter: bool,
+    /// Do not try using entries from dedicated group only for HTTP Git operations. Applies to get and store only
+    #[clap(long, value_parser, global = true)]
+    pub no_git_detection: bool,
+    /// Use specified KeePassXC group only, overrides Git detection. Applies to get and store only
+    #[clap(long, value_parser, global = true)]
+    pub group: Option<String>,
     /// Sets the level of verbosity (-v: WARNING; -vv: INFO; -vvv: DEBUG in debug builds)
     #[clap(short, action(ArgAction::Count))]
     pub verbose: u8,
