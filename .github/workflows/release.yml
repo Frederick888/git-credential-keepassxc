@@ -42,7 +42,7 @@ jobs:
         run: |
           is_pre='false'
           [[ "$GITHUB_REF_NAME" == *"-"* ]] && is_pre='true'
-          printf '::set-output name=is_pre::%s\n' "$is_pre"
+          printf 'is_pre=%s\n' "$is_pre" >> $GITHUB_OUTPUT
       - name: Create Release
         id: create_release
         uses: ncipollo/release-action@v1
@@ -215,10 +215,10 @@ jobs:
         run: |
           case "${{ matrix.features }}" in
             default)
-              printf '::set-output name=suffix::%s\n' "minimal"
+              printf 'suffix=%s\n' 'minimal' >> $GITHUB_OUTPUT
               ;;
             all)
-              printf '::set-output name=suffix::%s\n' "full"
+              printf 'suffix=%s\n' 'full' >> $GITHUB_OUTPUT
               ;;
             *)
               exit 1
@@ -228,7 +228,7 @@ jobs:
         id: pack
         run: |
           zip -j "./${{ matrix.os }}-${{ steps.artifact_suffix.outputs.suffix }}.zip" target/release/git-credential-keepassxc target/release/git-credential-keepassxc.exe
-          echo "::set-output name=filename::${{ matrix.os }}-${{ steps.artifact_suffix.outputs.suffix }}"
+          echo "filename=${{ matrix.os }}-${{ steps.artifact_suffix.outputs.suffix }}" >> $GITHUB_OUTPUT
       - name: "Hash (Unix)"
         if: "!contains(matrix.os, 'windows')"
         run: |

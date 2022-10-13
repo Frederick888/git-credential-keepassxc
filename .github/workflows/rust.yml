@@ -210,10 +210,10 @@ jobs:
         run: |
           case "${{ matrix.features }}" in
             default)
-              printf '::set-output name=suffix::%s\n' "minimal"
+              printf 'suffix=%s\n' 'minimal' >> $GITHUB_OUTPUT
               ;;
             all)
-              printf '::set-output name=suffix::%s\n' "full"
+              printf 'suffix=%s\n' 'full' >> $GITHUB_OUTPUT
               ;;
             *)
               exit 1
