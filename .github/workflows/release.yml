@@ -21,6 +21,7 @@ jobs:
           fetch-depth: 0
       - name: Conventional Commit Changelog
         id: conventional_commits
+        shell: bash
         run: |
           curl -s -L -o./clog.tar.gz https://github.com/clog-tool/clog-cli/releases/download/v0.9.3/clog-v0.9.3-x86_64-unknown-linux-musl.tar.gz
           tar -xf ./clog.tar.gz
@@ -226,6 +227,7 @@ jobs:
           esac
       - name: Pack
         id: pack
+        shell: bash
         run: |
           zip -j "./${{ matrix.os }}-${{ steps.artifact_suffix.outputs.suffix }}.zip" target/release/git-credential-keepassxc target/release/git-credential-keepassxc.exe
           echo "filename=${{ matrix.os }}-${{ steps.artifact_suffix.outputs.suffix }}" >> $GITHUB_OUTPUT
