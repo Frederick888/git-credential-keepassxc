@@ -22,7 +22,7 @@ pub fn get_socket_path() -> Result<PathBuf> {
         Box::new(LinuxSocketPath260),
         Box::new(MacSocketPath260),
         Box::new(WindowsSocketPath260),
-        Box::new(LinuxSocketPath274),
+        Box::new(LinuxSocketPath272),
         Box::new(WindowsSocketPath262),
         Box::new(WindowsSocketPathNatMsg),
     ];
@@ -85,8 +85,8 @@ impl SocketPath for LinuxSocketPath260 {
 }
 
 // https://github.com/keepassxreboot/keepassxc/commit/1009650b5c2697f5420c0f4398271652a4158c1a
-struct LinuxSocketPath274;
-impl SocketPath for LinuxSocketPath274 {
+struct LinuxSocketPath272;
+impl SocketPath for LinuxSocketPath272 {
     fn get_path(&self) -> Result<PathBuf> {
         let base_dirs = directories_next::BaseDirs::new()
             .ok_or_else(|| anyhow!("Failed to initialise base_dirs"))?;
