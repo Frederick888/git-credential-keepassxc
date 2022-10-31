@@ -329,7 +329,7 @@ impl Config {
         let encrypted = aead
             .encrypt(nonce, data)
             .map_err(|_| anyhow!("Failed to encrypt database key"))?;
-        Ok(base64::encode(&encrypted))
+        Ok(base64::encode(encrypted))
     }
 
     #[cfg(feature = "encryption")]

@@ -699,7 +699,7 @@ mod tests {
         let (_, client_id) = nacl_nonce();
 
         let exchange_message_context = mock_kpxc_initialise(&host_seckey);
-        let change_public_key_request = ChangePublicKeysRequest::new(&client_id, &host_pubkey);
+        let change_public_key_request = ChangePublicKeysRequest::new(client_id, &host_pubkey);
         let change_public_key_response = change_public_key_request.send();
         assert!(change_public_key_response.is_ok());
         let change_public_key_response = change_public_key_response.unwrap();
