@@ -749,7 +749,7 @@ fn lock_database<T: AsRef<Path>>(config_path: T) -> Result<()> {
     let (client_id, _, _) = start_session()?;
 
     let ld_req = LockDatabaseRequest::new();
-    let (ld_resp, _) = ld_req.send(&client_id, false)?;
+    let (ld_resp, _) = ld_req.send(client_id, false)?;
 
     ld_resp.check(&ld_req.get_action())
 }

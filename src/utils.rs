@@ -70,7 +70,7 @@ pub fn get_socket_path() -> Result<PathBuf> {
             let get_socket_path_with_name = |name: &str| -> Result<PathBuf> {
                 let socket_dir = if cfg!(windows) && name == KEEPASS_SOCKET_NAME_LEGACY {
                     let temp_dir = std::env::temp_dir();
-                    let temp_dir = std::fs::canonicalize(&temp_dir)?;
+                    let temp_dir = std::fs::canonicalize(temp_dir)?;
                     PathBuf::from(format!(
                         "\\\\.\\pipe\\\\{}\\{}",
                         &temp_dir.to_string_lossy()[4..],
@@ -414,7 +414,7 @@ pub fn to_encrypted_json<M: serde::Serialize>(request: &M, nonce: &NaClNonce) ->
     let encrypted = client_box
         .encrypt(nonce, json.as_bytes())
         .map_err(|_| CryptionError(true))?;
-    let encrypted = base64::encode(&encrypted);
+    let encrypted = base64::encode(encrypted);
     Ok(encrypted)
 }
 
