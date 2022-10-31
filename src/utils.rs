@@ -1,4 +1,5 @@
 pub mod callers;
+pub mod socket;
 
 use anyhow::{anyhow, Context, Error, Result};
 use crypto_box::{
@@ -12,12 +13,10 @@ use mockall::mock;
 use named_pipe::PipeClient;
 use once_cell::unsync::OnceCell;
 use std::cell::RefCell;
-use std::env;
 use std::fmt;
 use std::io::{ErrorKind, Read, Write};
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
-use std::path::PathBuf;
 use std::rc::Rc;
 use std::str;
 use std::time::Duration;
@@ -25,9 +24,6 @@ use std::time::Duration;
 #[cfg(windows)]
 const NAMED_PIPE_CONNECT_TIMEOUT_MS: u32 = 100;
 const READ_TIMEOUT: Duration = Duration::new(0, 200 * 1_000_000);
-const KEEPASS_SOCKET_NAME: &str = "org.keepassxc.KeePassXC.BrowserServer";
-const KEEPASS_SOCKET_NAME_LEGACY: &str = "kpxc_server";
-const KEEPASS_SOCKET_ENVIRONMENT_VARIABLE: &str = "KEEPASSXC_BROWSER_SOCKET_PATH";
 
 #[macro_export]
 macro_rules! error {
@@ -58,92 +54,6 @@ macro_rules! debug {
     };
 }
 
-thread_local!(pub static SOCKET_PATH: OnceCell<PathBuf> = OnceCell::new());
-pub fn get_socket_path() -> Result<PathBuf> {
-    let socket_path = SOCKET_PATH.with(|s| -> Result<_> {
-        Ok(s.get_or_try_init(|| -> Result<_> {
-            if let Ok(env_socket_path) = env::var(KEEPASS_SOCKET_ENVIRONMENT_VARIABLE) {
-                return Ok(PathBuf::from(env_socket_path));
-            }
-            let base_dirs = directories_next::BaseDirs::new()
-                .ok_or_else(|| anyhow!("Failed to initialise base_dirs"))?;
-            let get_socket_path_with_name = |name: &str| -> Result<PathBuf> {
-                let socket_dir = if cfg!(windows) && name == KEEPASS_SOCKET_NAME_LEGACY {
-                    let temp_dir = std::env::temp_dir();
-                    let temp_dir = std::fs::canonicalize(temp_dir)?;
-                    PathBuf::from(format!(
-                        "\\\\.\\pipe\\\\{}\\{}",
-                        &temp_dir.to_string_lossy()[4..],
-                        name
-                    ))
-                } else if cfg!(windows) {
-                    PathBuf::from(format!("\\\\.\\pipe\\{}", name))
-                } else if cfg!(target_os = "macos") {
-                    std::env::temp_dir().join(name)
-                } else {
-                    base_dirs
-                        .runtime_dir()
-                        .ok_or_else(|| anyhow!("Failed to locate runtime_dir automatically"))?
-                        .join(name)
-                };
-                Ok(socket_dir)
-            };
-            let legacy_path = get_socket_path_with_name(KEEPASS_SOCKET_NAME_LEGACY);
-            if let Ok(legacy_path) = legacy_path {
-                if legacy_path.exists() {
-                    return Ok(legacy_path);
-                }
-                #[cfg(windows)]
-                if PipeClient::connect_ms(&legacy_path, NAMED_PIPE_CONNECT_TIMEOUT_MS).is_ok() {
-                    return Ok(legacy_path);
-                }
-                info!(
-                    "Legacy socket path {} does not exist",
-                    legacy_path.to_string_lossy()
-                );
-            }
-            #[cfg(windows)]
-            if let Ok(username) = &std::env::var("USERNAME") {
-                let kpnatmsg_str = "keepassxc\\".to_owned() + username + "\\kpxc_server";
-                let kpnatmsg_path = get_socket_path_with_name(&kpnatmsg_str);
-                if let Ok(kpnatmsg_path) = kpnatmsg_path {
-                    if kpnatmsg_path.exists() {
-                        return Ok(kpnatmsg_path);
-                    }
-                    if PipeClient::connect_ms(&kpnatmsg_path, NAMED_PIPE_CONNECT_TIMEOUT_MS).is_ok()
-                    {
-                        return Ok(kpnatmsg_path);
-                    }
-                    info!("KeePassNatMsg socket path {} does not exist", kpnatmsg_str);
-                }
-            }
-            let path = get_socket_path_with_name(KEEPASS_SOCKET_NAME)?;
-            #[cfg(windows)]
-            if PipeClient::connect_ms(&path, NAMED_PIPE_CONNECT_TIMEOUT_MS).is_ok() {
-                // KPXC 2.6.0 - 2.6.1 didn't have USERNAME in named pipe
-                return Ok(path);
-            } else {
-                info!(
-                    "Legacy socket path {} does not exist",
-                    path.to_string_lossy()
-                );
-            }
-            if cfg!(windows) {
-                Ok(path.with_file_name(
-                    KEEPASS_SOCKET_NAME.to_owned() + "_" + &std::env::var("USERNAME")?,
-                ))
-            } else {
-                Ok(path)
-            }
-        })?
-        .clone())
-    });
-    if let Ok(ref socket_path) = socket_path {
-        debug!("Socket path: {}", socket_path.to_string_lossy());
-    }
-    socket_path
-}
-
 #[derive(Debug)]
 pub struct InvalidKeyError(String, usize);
 impl fmt::Display for InvalidKeyError {
@@ -170,7 +80,7 @@ fn get_stream() -> Result<Rc<RefCell<UnixStream>>> {
     thread_local!(static STREAM: OnceCell<Rc<RefCell<UnixStream>>> = OnceCell::new());
     STREAM.with(|s| -> Result<_> {
         Ok(s.get_or_try_init(|| -> Result<_> {
-            let path = get_socket_path()?;
+            let path = socket::get_socket_path()?;
             let stream = UnixStream::connect(&path).with_context(|| {
                 format!(
                     "Failed to connect to Unix socket {}",
@@ -191,7 +101,7 @@ fn get_stream() -> Result<Rc<RefCell<PipeClient>>> {
     thread_local!(static STREAM: OnceCell<Rc<RefCell<PipeClient>>> = OnceCell::new());
     STREAM.with(|s| -> Result<_> {
         Ok(s.get_or_try_init(|| -> Result<_> {
-            let path = get_socket_path()?;
+            let path = socket::get_socket_path()?;
             let mut stream = PipeClient::connect_ms(&path, NAMED_PIPE_CONNECT_TIMEOUT_MS)
                 .with_context(|| {
                     format!("Failed to connect to named pipe {}", path.to_string_lossy())

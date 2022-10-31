@@ -880,10 +880,7 @@ fn real_main() -> Result<()> {
     };
     if let Some(path) = args.socket {
         info!("Socket path is set to {} by user", path);
-        let path = PathBuf::from(path);
-        utils::SOCKET_PATH.with(|s| {
-            s.set(path).expect("Failed to set socket path, bug?");
-        });
+        env::set_var(utils::socket::KEEPASS_SOCKET_ENVIRONMENT_VARIABLE, &path);
     };
     if let Some(ref unlock_options) = args.unlock {
         info!(
