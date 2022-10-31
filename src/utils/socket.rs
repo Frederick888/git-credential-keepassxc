@@ -22,6 +22,7 @@ pub fn get_socket_path() -> Result<PathBuf> {
         Box::new(LinuxSocketPath260),
         Box::new(MacSocketPath260),
         Box::new(WindowsSocketPath260),
+        Box::new(LinuxSocketPath274),
         Box::new(WindowsSocketPath262),
         Box::new(WindowsSocketPathNatMsg),
     ];
@@ -74,6 +75,26 @@ impl SocketPath for LinuxSocketPath260 {
         let result = base_dirs
             .runtime_dir()
             .ok_or_else(|| anyhow!("Failed to locate runtime_dir automatically"))?
+            .join(KEEPASS_SOCKET_NAME);
+        exist_or_error(result)
+    }
+
+    fn matches_os(&self) -> bool {
+        cfg!(target_os = "linux")
+    }
+}
+
+// https://github.com/keepassxreboot/keepassxc/commit/1009650b5c2697f5420c0f4398271652a4158c1a
+struct LinuxSocketPath274;
+impl SocketPath for LinuxSocketPath274 {
+    fn get_path(&self) -> Result<PathBuf> {
+        let base_dirs = directories_next::BaseDirs::new()
+            .ok_or_else(|| anyhow!("Failed to initialise base_dirs"))?;
+        let result = base_dirs
+            .runtime_dir()
+            .ok_or_else(|| anyhow!("Failed to locate runtime_dir automatically"))?
+            .join("app")
+            .join("org.keepassxc.KeePassXC")
             .join(KEEPASS_SOCKET_NAME);
         exist_or_error(result)
     }
