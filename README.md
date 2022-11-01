@@ -6,42 +6,40 @@
 
 `git-credential-keepassxc` is a [Git credential](https://git-scm.com/docs/gitcredentials) helper that allows Git (and shell scripts) to get/store logins from/to [KeePassXC](https://keepassxc.org/).
 
-It communicates with KeePassXC using [keepassxc-protocol](https://github.com/keepassxreboot/keepassxc-browser/blob/develop/keepassxc-protocol.md) which is originally designed for browser extensions.
+It communicates with KeePassXC using [keepassxc-protocol](https://github.com/keepassxreboot/keepassxc-browser/blob/develop/keepassxc-protocol.md), which was originally designed for browser extensions.
 
 ## How to install
 
 ### Quick
 
 1. Install [Rust](https://www.rust-lang.org/) compiler via [rustup](https://rustup.rs/) or your favourite package manager
-0. Run `cargo install --locked git-credential-keepassxc` (or `cargo install --locked --git https://github.com/Frederick888/git-credential-keepassxc.git` for the latest development version)
-
-*Note:* Make sure `$CARGO_INSTALL_ROOT` is in your search path.
+0. Run `cargo install --locked git-credential-keepassxc` and it will be installed to [Cargo installation root](https://doc.rust-lang.org/cargo/commands/cargo-install.html#description)
 
 ### Pre-Built Binaries (Experimental)
 
-Pre-built binaries are now available at the [GitHub release page](https://github.com/Frederick888/git-credential-keepassxc/releases).
+Experimental pre-built binaries are available at the [GitHub release page](https://github.com/Frederick888/git-credential-keepassxc/releases).
 
-The `*-minimal` ones are built with no features enabled, and `*-full` ones are built with all.
+`*-minimal` ones are built with no optional features, and `*-full` ones are built with all.
 
 ### Optional features
 
-`git-credential-keepassxc` currently has got the following features that you can choose to opt in:
+`git-credential-keepassxc` has the following optional features:
 
-| Feature | Description |
-| ------- | ----------- |
-| `all` | Enable all features |
-| `notification` | Desktop notifications, helpful if `git-credential-keepassxc` is used in scripts |
-| `yubikey` | Allow encrypting configuration file using YubiKey HMAC-SHA1 |
+| Feature         | Description                                                                                                                      |
+|-----------------|----------------------------------------------------------------------------------------------------------------------------------|
+| `all`           | Enable all features                                                                                                              |
+| `notification`  | Desktop notifications, helpful if `git-credential-keepassxc` is used in scripts                                                  |
+| `yubikey`       | Allow encrypting configuration file using YubiKey HMAC-SHA1                                                                      |
 | `strict-caller` | Enforce caller limiting when there are associated databases (read the [Limiting callers](#limiting-callers) section for details) |
 
-It is suggested to use [cargo-update](https://crates.io/crates/cargo-update) to make the features you've enabled persistent across updates.
+You can use [cargo-update](https://crates.io/crates/cargo-update) to make the features persistent across updates.
 
 ```sh
 # install cargo-update first
 $ cargo install --locked cargo-update
 # enable and persist features
 $ cargo install --locked --features <FEATURE>... git-credential-keepassxc
-# note the flipped order of package name and --feature flag
+# note the different order of package name and --feature (singular) flag
 $ cargo install-update-config git-credential-keepassxc --enforce-lock --feature <FEATURE>...
 
 # later when you update
@@ -50,9 +48,7 @@ $ cargo install-update git-credential-keepassxc
 
 ## Configuration
 
-Similar to the browser extensions, `git-credential-keepassxc` needs to be associated with KeePassXC first.
-
-Run:
+Similar to the browser extensions, `git-credential-keepassxc` needs to be associated with KeePassXC first:
 
 ```sh
 $ git-credential-keepassxc configure
@@ -67,7 +63,7 @@ For more options, run `git-credential-keepassxc -h` to show the help message.
 
 ## Limiting callers
 
-`git-credential-keepassxc` allows you to limit callers (though you should probably have a look at some [MAC](https://en.wikipedia.org/wiki/Mandatory_access_control) systems to properly achieve this), for instance:
+`git-credential-keepassxc` allows you to limit callers of the program:
 
 ```sh
 # don't forget to add yourself first
@@ -99,16 +95,16 @@ $ git-credential-keepassxc caller clear
 
 ## Encrypting KeePassXC keys using YubiKey
 
-By default the keys for authentication are stored in plaintext, which means it's possible for malware to extract the keys and request credentials from KeePassXC directly. This can be particularly dangerous if you've allowed clients to retrieve any credentials without confirmation.
+By default the keys for authentication are stored in plaintext, which can be particularly dangerous if you've allowed clients to retrieve any credentials without confirmation.
 
-`git-credential-keepassxc` is capable of encrypting KeePassXC keys using YubiKey Challenge-Response. First make sure you've enabled `yubikey` feature, then:
+`git-credential-keepassxc` is capable of encrypting these keys using YubiKey HMAC-SHA1 Challenge-Response. First make sure you've enabled the `yubikey` feature, then:
 
 ```sh
 # encrypt using YubiKey slot 2 and a randomly generated challenge
 $ git-credential-keepassxc encrypt challenge-response
 ```
 
-To decrypt the keys and then disable this feature:
+To decrypt the keys:
 
 ```sh
 $ git-credential-keepassxc decrypt
@@ -118,31 +114,31 @@ For more details, see: [wiki/Encryption](https://github.com/Frederick888/git-cre
 
 ## Ignoring certain entries
 
-Although currently it's not possible to return entries only from the Git group, you may still want to hide specific ones from Git (for instance GitLab allows only access tokens to clone over HTTPS when 2FA is enabled, so your password may conflict with the token). This can be done by adding a magic attribute to those entries.
+You can hide certain entries from `git-credential-keepassxc` by adding the `KPH: git` attributes to them. (For example, when you have GitLab password and access token in two entries, and you only need the token via `git-credential-keepassxc`.)
 
 1. In KeePassXC, go to Tools -> Settings -> Browser Integration -> Advanced, enable `Return advanced string fields which start with "KPH: "` (this is enabled by default)
 0. Open the entry you'd like to hide
 0. Go to Advanced
-0. Add an additional attribute `KPH: git` (the space after colon is necessary) of which the value is `false`
+0. Add an additional attribute `KPH: git` (the space after colon is required) of which the value is `false`
 
-This also prevents these entries from being overwritten by `git-credential-keepassxc`, especially if you are pulling/pushing from/to a Git repository in which case Git sometimes tries to update passwords.
+This also prevents these entries from being overwritten by `git-credential-keepassxc`, which is important if you use `git-credential-keepassxc` to fetch/push Git repositories over HTTP/S, since Git may try to update your passwords.
 
 ## Scripting
 
-`git-credential-keepassxc` can also help manage credentials in shell scripts. You can send a request via standard input in [git-credential input/output format](https://git-scm.com/docs/git-credential#IOFMT) then process the response.
+`git-credential-keepassxc` can also help manage credentials in shell scripts. You can send a request via standard input in the [git-credential input/output format](https://git-scm.com/docs/git-credential#IOFMT) then process the response.
 
-Currently accepted fields in input (unknown fields are ignored):
+Accepted fields in input (unknown fields are ignored):
 
 - `url`
 - `username`
 - `password` (`store` requests only)
 
-Responses are in the same format. Alternatively `get`, `totp`, `store`, and `generate-password` responses can also be formatted in JSON by providing `--json` flag; `get` and `totp` also support `--raw` flag.
+Responses are in the same format. Alternatively `get`, `totp`, `store`, and `generate-password` responses can also be formatted in JSON with `--json` flag; `get` and `totp` also support `--raw` flag.
 
 For instance, to connect to a Remote Desktop service:
 
 ```sh
-#!/usr/bin/env bash
+#!/usr/bin/env -S bash -euET -o pipefail -O inherit_errexit
 
 trap 'notify-send "RDP Failure" "Failed to connect to Remote Desktop service"' ERR
 
