@@ -22,7 +22,7 @@ impl<'de> Deserialize<'de> for KeePassBoolean {
         match s.as_str() {
             "true" => Ok(KeePassBoolean(true)),
             "false" => Ok(KeePassBoolean(false)),
-            _ => Err(serde::de::Error::custom(format!("Unknown boolean {}", s))),
+            _ => Err(serde::de::Error::custom(format!("Unknown boolean {s}"))),
         }
     }
 }

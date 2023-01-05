@@ -917,7 +917,7 @@ fn main() {
             error!("{}, Caused by: {}", e, source);
         } else {
             // failed to initialise LOGGER
-            println!("{}, Caused by: {}", e, source);
+            println!("{e}, Caused by: {source}");
         }
         std::process::exit(1);
     }

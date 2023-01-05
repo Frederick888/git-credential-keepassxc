@@ -182,7 +182,7 @@ impl SocketPath for WindowsSocketPath260 {
 
     #[cfg(target_os = "windows")]
     fn get_path(&self) -> Result<PathBuf> {
-        let result = PathBuf::from(format!(r#"\\.\pipe\{}"#, KEEPASS_SOCKET_NAME));
+        let result = PathBuf::from(format!(r#"\\.\pipe\{KEEPASS_SOCKET_NAME}"#));
         connectable_or_error(result)
     }
 
@@ -201,7 +201,7 @@ impl SocketPath for WindowsSocketPath262 {
     #[cfg(target_os = "windows")]
     fn get_path(&self) -> Result<PathBuf> {
         let pipe_with_username = KEEPASS_SOCKET_NAME.to_owned() + "_" + &std::env::var("USERNAME")?;
-        let result = PathBuf::from(format!(r#"\\.\pipe\{}"#, pipe_with_username));
+        let result = PathBuf::from(format!(r#"\\.\pipe\{pipe_with_username}"#));
         connectable_or_error(result)
     }
 
