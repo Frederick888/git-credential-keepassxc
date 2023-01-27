@@ -6,7 +6,7 @@ mod utils;
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
-use cli::{GetMode, UnlockOptions};
+use cli::{EntryFilters, GetMode, HasEntryFilters, UnlockOptions};
 use config::{Caller, Config, Database};
 use crypto_box::{PublicKey, SecretKey};
 use git::GitCredentialMessage;
@@ -23,6 +23,8 @@ use std::thread;
 use std::time::Duration;
 use utils::callers::CurrentCaller;
 use utils::*;
+
+use crate::cli::HasLocalEntryFilters;
 
 static LOGGER: OnceCell<Logger> = OnceCell::new();
 
@@ -401,6 +403,7 @@ fn get_logins_for<T: AsRef<str>>(
     config: &Config,
     client_id: T,
     url: T,
+    filters: &EntryFilters,
     unlock_options: &Option<UnlockOptions>,
 ) -> Result<(Vec<LoginEntry>, String)> {
     let databases = associated_databases(config, client_id.as_ref(), unlock_options)?;
@@ -413,11 +416,34 @@ fn get_logins_for<T: AsRef<str>>(
     let gl_req = GetLoginsRequest::new(url.as_ref(), None, None, &id_key_pairs[..]);
     let (gl_resp, gl_resp_raw) = gl_req.send(client_id.as_ref(), false)?;
 
-    let login_entries: Vec<_> = gl_resp
+    let mut login_entries: Vec<_> = gl_resp
         .entries
         .into_iter()
         .filter(|e| e.expired.is_none() || !e.expired.as_ref().unwrap().0)
         .collect();
+
+    if filters.kph {
+        let num_entries = login_entries.len();
+        login_entries.retain(filter_kph);
+        let num_filtered = num_entries - login_entries.len();
+        if num_filtered > 0 {
+            info!(
+                "{} login(s) were filtered out due to having label KPH: git == false",
+                num_filtered
+            );
+        }
+    }
+    {
+        let num_entries = login_entries.len();
+        login_entries.retain(|login_entry| {
+            filter_group(login_entry, &filters.groups, filters.git_groups, &databases)
+        });
+        let num_filtered = num_entries - login_entries.len();
+        if num_filtered > 0 {
+            info!("{} login(s) were filtered out by group", num_filtered);
+        }
+    }
+
     Ok((login_entries, gl_resp_raw))
 }
 
@@ -433,35 +459,47 @@ fn get_totp_for<T: AsRef<str>>(client_id: T, uuid: T) -> Result<GetTotpResponse>
     }
 }
 
-fn filter_kph_logins(login_entries: &[LoginEntry], skip: bool) -> (u32, Vec<&LoginEntry>) {
-    let mut kph_false = 0u32;
-    if skip {
-        return (kph_false, login_entries.iter().collect());
-    }
-    let login_entries: Vec<&LoginEntry> = login_entries
-        .iter()
-        .filter(|entry| {
-            if let Some(ref string_fields) = entry.string_fields {
-                let kph_false_fields = string_fields.iter().find(|m| {
-                    if let Some(v) = m.get("KPH: git") {
-                        v == "false"
-                    } else {
-                        false
-                    }
-                });
-                if kph_false_fields.is_some() {
-                    kph_false += 1;
-                }
-                kph_false_fields.is_none()
+fn filter_kph(login_entry: &LoginEntry) -> bool {
+    if let Some(ref string_fields) = login_entry.string_fields {
+        let kph_false_fields = string_fields.iter().find(|m| {
+            if let Some(v) = m.get("KPH: git") {
+                v == "false"
             } else {
-                true
+                false
             }
-        })
-        .collect();
-    (kph_false, login_entries)
+        });
+        kph_false_fields.is_none()
+    } else {
+        true
+    }
 }
 
-fn get_logins<T, A>(config_path: T, unlock_options: &Option<UnlockOptions>, args: &A) -> Result<()>
+fn filter_group(
+    login_entry: &LoginEntry,
+    groups: &[String],
+    git_groups: bool,
+    databases: &[Database],
+) -> bool {
+    if let Some(ref login_entry_group) = login_entry.group {
+        if !git_groups {
+            return groups.is_empty() || groups.contains(login_entry_group);
+        }
+        let database_groups: Vec<&String> = databases.iter().map(|d| &d.group).collect();
+        groups.contains(login_entry_group) || database_groups.contains(&login_entry_group)
+    } else {
+        if !groups.is_empty() || git_groups {
+            warn!("Group filter(s) provided but no group info from KeePassXC (using KeePassXC < 2.6.0?)");
+        }
+        true
+    }
+}
+
+fn get_logins<T, A>(
+    config_path: T,
+    unlock_options: &Option<UnlockOptions>,
+    entry_filters: EntryFilters,
+    args: &A,
+) -> Result<()>
 where
     T: AsRef<Path>,
     A: cli::GetOperation,
@@ -499,8 +537,8 @@ where
     // start session
     let (client_id, _, _) = start_session()?;
 
-    let (login_entries, login_entries_raw) =
-        get_logins_for(&config, &client_id, &url, unlock_options)?;
+    let (mut login_entries, login_entries_raw) =
+        get_logins_for(&config, &client_id, &url, &entry_filters, unlock_options)?;
     info!("KeePassXC returned {} login(s)", login_entries.len());
 
     if args.raw() {
@@ -532,10 +570,6 @@ where
         return Ok(());
     }
 
-    let (kph_false, mut login_entries) = filter_kph_logins(&login_entries, args.no_filter());
-    if kph_false > 0 {
-        info!("{} login(s) were labelled as KPH: git == false", kph_false);
-    }
     if login_entries.is_empty() {
         return Err(anyhow!("No matching logins found"));
     }
@@ -601,6 +635,7 @@ where
 fn store_login<T: AsRef<Path>>(
     config_path: T,
     unlock_options: &Option<UnlockOptions>,
+    entry_filters: EntryFilters,
     args: &cli::SubStoreArgs,
 ) -> Result<()> {
     let config = Config::read_from(config_path.as_ref())?;
@@ -618,17 +653,12 @@ fn store_login<T: AsRef<Path>>(
         return Err(anyhow!("Password is missing"));
     }
 
-    let login_entries =
-        get_logins_for(&config, &client_id, &url, unlock_options).and_then(|(entries, _)| {
-            let (kph_false, entries) = filter_kph_logins(&entries, args.no_filter);
-            if kph_false > 0 {
-                info!("{} login(s) were labelled as KPH: git == false", kph_false);
-            }
+    let login_entries = get_logins_for(&config, &client_id, &url, &entry_filters, unlock_options)
+        .and_then(|(entries, _)| {
             let username = git_req.username.as_ref().unwrap();
             let entries: Vec<_> = entries
                 .into_iter()
                 .filter(|entry| entry.login == *username)
-                .cloned()
                 .collect();
             info!(
                 "{} login(s) left after filtering by username",
@@ -636,10 +666,7 @@ fn store_login<T: AsRef<Path>>(
             );
             if entries.is_empty() {
                 // this Err is never used
-                Err(anyhow!(
-                    "No remaining logins after filtering out {} KPH: git == false one(s)",
-                    kph_false
-                ))
+                Err(anyhow!("Failed to find entry to update"))
             } else {
                 Ok(entries)
             }
@@ -690,14 +717,28 @@ fn store_login<T: AsRef<Path>>(
             );
         }
         let database = databases.first().unwrap();
+        let (group, group_uuid) = if let Some(group) = args.group.first() {
+            let gg_req = GetDatabaseGroupsRequest::new();
+            let (gg_resp, _) = gg_req.send(&client_id, false)?;
+            let group_uuid = gg_resp
+                .get_flat_groups()
+                .iter()
+                .filter(|g| &g.name == group)
+                .map(|g| g.uuid.clone())
+                .next()
+                .ok_or_else(|| anyhow!("Failed to find group {group}"))?;
+            (group.clone(), group_uuid)
+        } else {
+            (database.group.clone(), database.group_uuid.clone())
+        };
         SetLoginRequest::new(
             &url,
             &url,
             &database.id,
             &git_req.username.unwrap(),
             &git_req.password.unwrap(),
-            Some(&database.group),
-            Some(&database.group_uuid),
+            Some(&group),
+            Some(&group_uuid),
             None,
         )
     };
@@ -842,7 +883,7 @@ fn real_main() -> Result<()> {
     }
 
     let config_path = {
-        if let Some(path) = args.config {
+        if let Some(path) = &args.config {
             info!("Configuration file path is set to {} by user", path);
             PathBuf::from(path)
         } else {
@@ -851,9 +892,9 @@ fn real_main() -> Result<()> {
             base_dirs.config_dir().join(env!("CARGO_BIN_NAME"))
         }
     };
-    if let Some(path) = args.socket {
+    if let Some(path) = &args.socket {
         info!("Socket path is set to {} by user", path);
-        env::set_var(utils::socket::KEEPASS_SOCKET_ENVIRONMENT_VARIABLE, &path);
+        env::set_var(utils::socket::KEEPASS_SOCKET_ENVIRONMENT_VARIABLE, path);
     };
     if let Some(ref unlock_options) = args.unlock {
         info!(
@@ -862,6 +903,8 @@ fn real_main() -> Result<()> {
         );
     }
 
+    let main_entry_filters = args.entry_filters();
+
     debug!("Subcommand: {}", args.command.name());
     match &args.command {
         cli::Subcommands::Configure(configure_args) => configure(config_path, configure_args),
@@ -869,9 +912,30 @@ fn real_main() -> Result<()> {
         cli::Subcommands::Encrypt(encrypt_args) => encrypt(config_path, encrypt_args),
         cli::Subcommands::Decrypt(_) => decrypt(config_path),
         cli::Subcommands::Caller(caller_args) => caller(config_path, caller_args),
-        cli::Subcommands::Get(get_args) => get_logins(config_path, &args.unlock, get_args),
-        cli::Subcommands::Totp(totp_args) => get_logins(config_path, &args.unlock, totp_args),
-        cli::Subcommands::Store(store_args) => store_login(config_path, &args.unlock, store_args),
+        cli::Subcommands::Get(get_args) => {
+            let entry_filters = get_args.local_entry_filters(main_entry_filters);
+            if entry_filters.has_non_default() && get_args.raw {
+                Err(clap::Error::raw(
+                    clap::ErrorKind::ArgumentConflict,
+                    "Filter options (--group, --git-groups, --no-filter) cannot be used with --raw",
+                ))?;
+            }
+            get_logins(config_path, &args.unlock, entry_filters, get_args)
+        }
+        cli::Subcommands::Totp(totp_args) => {
+            let entry_filters = totp_args.local_entry_filters(main_entry_filters);
+            if entry_filters.has_non_default() && totp_args.raw {
+                Err(clap::Error::raw(
+                    clap::ErrorKind::ArgumentConflict,
+                    "Filter options (--group, --git-groups, --no-filter) cannot be used with --raw",
+                ))?;
+            }
+            get_logins(config_path, &args.unlock, entry_filters, totp_args)
+        }
+        cli::Subcommands::Store(store_args) => {
+            let entry_filters = store_args.local_entry_filters(main_entry_filters);
+            store_login(config_path, &args.unlock, entry_filters, store_args)
+        }
         cli::Subcommands::Erase(_) => erase_login(),
         cli::Subcommands::Lock(_) => lock_database(config_path),
         cli::Subcommands::GeneratePassword(generate_password_args) => {

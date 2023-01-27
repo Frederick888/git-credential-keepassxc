@@ -16,15 +16,34 @@ pub struct MainArgs {
     /// Specify KeePassXC socket path (environment variable: KEEPASSXC_BROWSER_SOCKET_PATH)
     #[clap(short, long, value_parser)]
     pub socket: Option<String>,
-    /// Try unlocking database, applies to get, store and erase only.
+    /// Try unlocking database. Applies to get, totp, and store only.
     /// Takes one argument in the format of [<MAX_RETRIES>[,<INTERVAL_MS>]]. Use 0 to retry indefinitely. The default interval is 1000ms.
     #[clap(long, value_parser, verbatim_doc_comment)]
     pub unlock: Option<UnlockOptions>,
+    /// Group(s) to get credentials from or the group to store the credential to
+    #[clap(long, value_parser)]
+    pub group: Vec<String>,
+    /// Get credentials from the dedicated group created by 'configure' subcommand
+    #[clap(long, value_parser)]
+    pub git_groups: bool,
+    /// Do not filter out entries with advanced field 'KPH: git' set to false
+    #[clap(long, value_parser)]
+    pub no_filter: bool,
     /// Sets the level of verbosity (-v: WARNING; -vv: INFO; -vvv: DEBUG in debug builds)
     #[clap(short, action(ArgAction::Count))]
     pub verbose: u8,
     #[clap(subcommand)]
     pub command: Subcommands,
+}
+
+impl HasEntryFilters for MainArgs {
+    fn entry_filters(&self) -> EntryFilters {
+        EntryFilters {
+            kph: !self.no_filter,
+            groups: self.group.clone(),
+            git_groups: self.git_groups,
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -62,7 +81,6 @@ impl Subcommands {
 
 pub trait GetOperation {
     fn get_mode(&self) -> GetMode;
-    fn no_filter(&self) -> bool;
     fn advanced_fields(&self) -> bool;
     fn json(&self) -> bool;
     fn raw(&self) -> bool;
@@ -74,6 +92,12 @@ pub struct SubGetArgs {
     /// Try getting TOTP
     #[clap(long, value_parser, conflicts_with = "raw")]
     pub totp: bool,
+    /// Group(s) to get credentials from or the group to store the credential to
+    #[clap(long, value_parser, conflicts_with = "raw")]
+    pub group: Vec<String>,
+    /// Get credentials from the dedicated group created by 'configure' subcommand
+    #[clap(long, value_parser, conflicts_with = "raw")]
+    pub git_groups: bool,
     /// Do not filter out entries with advanced field 'KPH: git' set to false
     #[clap(long, value_parser, conflicts_with = "raw")]
     pub no_filter: bool,
@@ -88,6 +112,18 @@ pub struct SubGetArgs {
     pub raw: bool,
 }
 
+impl HasEntryFilters for SubGetArgs {
+    fn entry_filters(&self) -> EntryFilters {
+        EntryFilters {
+            kph: !self.no_filter,
+            groups: self.group.clone(),
+            git_groups: self.git_groups,
+        }
+    }
+}
+
+impl HasLocalEntryFilters for SubGetArgs {}
+
 impl GetOperation for SubGetArgs {
     fn get_mode(&self) -> GetMode {
         if self.totp {
@@ -95,10 +131,6 @@ impl GetOperation for SubGetArgs {
         } else {
             GetMode::PasswordOnly
         }
-    }
-
-    fn no_filter(&self) -> bool {
-        self.no_filter
     }
 
     fn advanced_fields(&self) -> bool {
@@ -117,6 +149,15 @@ impl GetOperation for SubGetArgs {
 /// Get TOTP
 #[derive(Args)]
 pub struct SubTotpArgs {
+    /// Group(s) to get credentials from or the group to store the credential to
+    #[clap(long, value_parser)]
+    pub group: Vec<String>,
+    /// Get credentials from the dedicated group created by 'configure' subcommand
+    #[clap(long, value_parser)]
+    pub git_groups: bool,
+    /// Do not filter out entries with advanced field 'KPH: git' set to false
+    #[clap(long, value_parser)]
+    pub no_filter: bool,
     /// Print JSON
     #[clap(long, value_parser, conflicts_with = "raw")]
     pub json: bool,
@@ -128,10 +169,6 @@ pub struct SubTotpArgs {
 impl GetOperation for SubTotpArgs {
     fn get_mode(&self) -> GetMode {
         GetMode::TotpOnly
-    }
-
-    fn no_filter(&self) -> bool {
-        false
     }
 
     fn advanced_fields(&self) -> bool {
@@ -147,13 +184,43 @@ impl GetOperation for SubTotpArgs {
     }
 }
 
+impl HasEntryFilters for SubTotpArgs {
+    fn entry_filters(&self) -> EntryFilters {
+        EntryFilters {
+            kph: !self.no_filter,
+            groups: self.group.clone(),
+            git_groups: self.git_groups,
+        }
+    }
+}
+
+impl HasLocalEntryFilters for SubTotpArgs {}
+
 /// Store credential (used by Git)
 #[derive(Args)]
 pub struct SubStoreArgs {
+    /// Group(s) to get credentials from or the group to store the credential to
+    #[clap(long, value_parser)]
+    pub group: Vec<String>,
+    /// Get credentials from the dedicated group created by 'configure' subcommand
+    #[clap(long, value_parser)]
+    pub git_groups: bool,
     /// Do not filter out entries with advanced field 'KPH: git' set to false
     #[clap(long, value_parser)]
     pub no_filter: bool,
 }
+
+impl HasEntryFilters for SubStoreArgs {
+    fn entry_filters(&self) -> EntryFilters {
+        EntryFilters {
+            kph: !self.no_filter,
+            groups: self.group.clone(),
+            git_groups: self.git_groups,
+        }
+    }
+}
+
+impl HasLocalEntryFilters for SubStoreArgs {}
 
 /// [Not implemented] Erase credential (used by Git)
 #[derive(Args)]
@@ -327,4 +394,43 @@ pub enum GetMode {
     PasswordOnly,
     PasswordAndTotp,
     TotpOnly,
+}
+
+pub struct EntryFilters {
+    pub kph: bool,
+    pub groups: Vec<String>,
+    pub git_groups: bool,
+}
+
+impl EntryFilters {
+    pub fn has_non_default(&self) -> bool {
+        !self.kph || !self.groups.is_empty() || self.git_groups
+    }
+}
+
+impl Default for EntryFilters {
+    fn default() -> Self {
+        Self {
+            kph: true,
+            groups: vec![],
+            git_groups: false,
+        }
+    }
+}
+
+pub trait HasEntryFilters {
+    fn entry_filters(&self) -> EntryFilters;
+}
+
+pub trait HasLocalEntryFilters: HasEntryFilters {
+    fn local_entry_filters(&self, main_entry_filters: EntryFilters) -> EntryFilters {
+        let local_filters = self.entry_filters();
+        let mut effective_groups = main_entry_filters.groups;
+        effective_groups.extend_from_slice(&local_filters.groups);
+        EntryFilters {
+            kph: main_entry_filters.kph && local_filters.kph,
+            groups: effective_groups,
+            git_groups: main_entry_filters.git_groups || local_filters.git_groups,
+        }
+    }
 }
