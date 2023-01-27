@@ -1,5 +1,6 @@
 use super::primitives::*;
 use super::{super::errors::KeePassError, error_code::KeePassErrorCode};
+use crate::keepassxc::{FlatGroup, Group};
 use crate::utils::*;
 #[allow(unused_imports)]
 use crate::{debug, error, info, warn};
@@ -163,7 +164,7 @@ impl_cipher_text!([
     (GetLoginsRequest, GetLoginsResponse),
     (SetLoginRequest, SetLoginResponse),
     (LockDatabaseRequest, LockDatabaseResponse),
-    // (GetDatabaseGroupsRequest, GetDatabaseGroupsResponse),
+    (GetDatabaseGroupsRequest, GetDatabaseGroupsResponse),
     (CreateNewGroupRequest, CreateNewGroupResponse),
     (GetTotpRequest, GetTotpResponse),
 ]);
@@ -446,6 +447,7 @@ impl GetLoginsRequest {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LoginEntry {
+    pub group: Option<String>,
     pub login: String,
     pub name: String,
     pub password: String,
@@ -568,44 +570,54 @@ pub struct LockDatabaseResponse {
  * https://github.com/keepassxreboot/keepassxc-browser/blob/develop/keepassxc-protocol.md#get-database-groups
  */
 
-// #[derive(Serialize, Deserialize, Debug)]
-// pub struct GetDatabaseGroupsRequest {
-//     action: KeePassAction,
-// }
-//
-// impl GetDatabaseGroupsRequest {
-//     pub fn new() -> Self {
-//         Self {
-//             action: KeePassAction::GetDatabaseGroups,
-//         }
-//     }
-// }
-//
-// #[derive(Serialize, Deserialize, Debug)]
-// struct InnerGroups {
-//     pub groups: Vec<crate::keepassxc::Group>,
-// }
-//
-// #[derive(Serialize, Deserialize, Debug)]
-// pub struct GetDatabaseGroupsResponse {
-//     #[serde(rename = "defaultGroup")]
-//     pub default_group: Option<String>,
-//     #[serde(rename = "defaultGroupAlwaysAllow")]
-//     pub default_group_always_allow: Option<bool>,
-//     groups: InnerGroups,
-//     [> generic fields <]
-//     pub version: Option<String>,
-//     pub success: Option<KeePassBoolean>,
-//     pub error: Option<String>,
-//     #[serde(rename = "errorCode")]
-//     pub error_code: Option<KeePassErrorCode>,
-// }
-//
-// impl GetDatabaseGroupsResponse {
-//     pub fn get_groups(&self) -> &[crate::keepassxc::Group] {
-//         &self.groups.groups
-//     }
-// }
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetDatabaseGroupsRequest {
+    action: KeePassAction,
+}
+
+impl GetDatabaseGroupsRequest {
+    pub fn new() -> Self {
+        Self {
+            action: KeePassAction::GetDatabaseGroups,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct InnerGroups {
+    pub groups: Vec<Group>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetDatabaseGroupsResponse {
+    #[serde(rename = "defaultGroup")]
+    pub default_group: Option<String>,
+    #[serde(rename = "defaultGroupAlwaysAllow")]
+    pub default_group_always_allow: Option<bool>,
+    groups: InnerGroups,
+    /* generic fields */
+    pub version: Option<String>,
+    pub success: Option<KeePassBoolean>,
+    pub error: Option<String>,
+    #[serde(rename = "errorCode")]
+    pub error_code: Option<KeePassErrorCode>,
+}
+
+impl GetDatabaseGroupsResponse {
+    pub fn get_groups(&self) -> &[Group] {
+        &self.groups.groups
+    }
+
+    pub fn get_flat_groups(&self) -> Vec<FlatGroup> {
+        self.get_groups()
+            .iter()
+            .map(Group::get_flat_groups)
+            .fold(vec![], |mut acc, mut x| {
+                acc.append(&mut x);
+                acc
+            })
+    }
+}
 
 /*
  * create-new-group
