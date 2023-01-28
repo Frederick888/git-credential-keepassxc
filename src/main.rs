@@ -916,7 +916,7 @@ fn real_main() -> Result<()> {
             let entry_filters = get_args.local_entry_filters(main_entry_filters);
             if entry_filters.has_non_default() && get_args.raw {
                 Err(clap::Error::raw(
-                    clap::ErrorKind::ArgumentConflict,
+                    clap::error::ErrorKind::ArgumentConflict,
                     "Filter options (--group, --git-groups, --no-filter) cannot be used with --raw",
                 ))?;
             }
@@ -926,7 +926,7 @@ fn real_main() -> Result<()> {
             let entry_filters = totp_args.local_entry_filters(main_entry_filters);
             if entry_filters.has_non_default() && totp_args.raw {
                 Err(clap::Error::raw(
-                    clap::ErrorKind::ArgumentConflict,
+                    clap::error::ErrorKind::ArgumentConflict,
                     "Filter options (--group, --git-groups, --no-filter) cannot be used with --raw",
                 ))?;
             }

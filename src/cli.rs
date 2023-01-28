@@ -11,23 +11,23 @@ use std::{num, str::FromStr};
 #[clap(propagate_version = true)]
 pub struct MainArgs {
     /// Specify configuration JSON file path
-    #[clap(short, long, value_parser)]
+    #[clap(short, long)]
     pub config: Option<String>,
     /// Specify KeePassXC socket path (environment variable: KEEPASSXC_BROWSER_SOCKET_PATH)
-    #[clap(short, long, value_parser)]
+    #[clap(short, long)]
     pub socket: Option<String>,
     /// Try unlocking database. Applies to get, totp, and store only.
     /// Takes one argument in the format of [<MAX_RETRIES>[,<INTERVAL_MS>]]. Use 0 to retry indefinitely. The default interval is 1000ms.
-    #[clap(long, value_parser, verbatim_doc_comment)]
+    #[clap(long, verbatim_doc_comment)]
     pub unlock: Option<UnlockOptions>,
     /// Group(s) to get credentials from
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub group: Vec<String>,
     /// Get credentials from the dedicated group created by 'configure' subcommand
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub git_groups: bool,
     /// Do not filter out entries with advanced field 'KPH: git' set to false
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub no_filter: bool,
     /// Sets the level of verbosity (-v: WARNING; -vv: INFO; -vvv: DEBUG in debug builds)
     #[clap(short, action(ArgAction::Count))]
@@ -90,25 +90,25 @@ pub trait GetOperation {
 #[derive(Args)]
 pub struct SubGetArgs {
     /// Try getting TOTP
-    #[clap(long, value_parser, conflicts_with = "raw")]
+    #[clap(long, conflicts_with = "raw")]
     pub totp: bool,
     /// Group(s) to get credentials from
-    #[clap(long, value_parser, conflicts_with = "raw")]
+    #[clap(long, conflicts_with = "raw")]
     pub group: Vec<String>,
     /// Get credentials from the dedicated group created by 'configure' subcommand
-    #[clap(long, value_parser, conflicts_with = "raw")]
+    #[clap(long, conflicts_with = "raw")]
     pub git_groups: bool,
     /// Do not filter out entries with advanced field 'KPH: git' set to false
-    #[clap(long, value_parser, conflicts_with = "raw")]
+    #[clap(long, conflicts_with = "raw")]
     pub no_filter: bool,
     /// Print advanced fields
-    #[clap(long, value_parser, conflicts_with = "raw")]
+    #[clap(long, conflicts_with = "raw")]
     pub advanced_fields: bool,
     /// Print JSON
-    #[clap(long, value_parser, conflicts_with = "raw")]
+    #[clap(long, conflicts_with = "raw")]
     pub json: bool,
     /// Show raw output from KeePassXC
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub raw: bool,
 }
 
@@ -150,19 +150,19 @@ impl GetOperation for SubGetArgs {
 #[derive(Args)]
 pub struct SubTotpArgs {
     /// Group(s) to get credentials from
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub group: Vec<String>,
     /// Get credentials from the dedicated group created by 'configure' subcommand
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub git_groups: bool,
     /// Do not filter out entries with advanced field 'KPH: git' set to false
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub no_filter: bool,
     /// Print JSON
-    #[clap(long, value_parser, conflicts_with = "raw")]
+    #[clap(long, conflicts_with = "raw")]
     pub json: bool,
     /// Show raw output from KeePassXC with entry UUIDs
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub raw: bool,
 }
 
@@ -200,16 +200,16 @@ impl HasLocalEntryFilters for SubTotpArgs {}
 #[derive(Args)]
 pub struct SubStoreArgs {
     /// Create new entries in specified group instead of the one created by 'configure' subcommand
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub create_in: Option<String>,
     /// Group(s) to get credentials from
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub group: Vec<String>,
     /// Get credentials from the dedicated group created by 'configure' subcommand
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub git_groups: bool,
     /// Do not filter out entries with advanced field 'KPH: git' set to false
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub no_filter: bool,
 }
 
@@ -237,7 +237,7 @@ pub struct SubLockArgs {}
 #[derive(Args)]
 pub struct SubGeneratePasswordArgs {
     /// Print JSON
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub json: bool,
 }
 
@@ -245,12 +245,12 @@ pub struct SubGeneratePasswordArgs {
 #[derive(Args)]
 pub struct SubConfigureArgs {
     /// Name of group where new credentials are stored
-    #[clap(long, value_parser, default_value_t = String::from("Git"))]
+    #[clap(long, default_value_t = String::from("Git"))]
     pub group: String,
     /// Encrypt KeePassXC database profiles.
     /// Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
     /// Leave empty ("") to use existing encryption profile in configuration file.
-    #[clap(long, value_parser, verbatim_doc_comment)]
+    #[clap(long, verbatim_doc_comment)]
     pub encrypt: Option<String>,
 }
 
@@ -291,19 +291,19 @@ pub struct SubCallerAddArgs {
     /// Absolute path of the caller executable
     #[clap(value_parser)]
     pub path: String,
-    #[clap(long, value_parser, value_parser)]
+    #[clap(long)]
     /// UID of the caller process (ignored under Windows)
     pub uid: Option<u32>,
     /// GID of the caller process (ignored under Windows)
-    #[clap(long, value_parser, value_parser)]
+    #[clap(long)]
     pub gid: Option<u32>,
     /// Additionally compare canonical caller paths during verification
-    #[clap(long, value_parser, value_parser)]
+    #[clap(long)]
     pub canonicalize: bool,
     /// Encrypt caller profiles.
     /// Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
     /// Leave empty ("") to use existing encryption profile in configuration file.
-    #[clap(long, value_parser, verbatim_doc_comment)]
+    #[clap(long, verbatim_doc_comment)]
     pub encrypt: Option<String>,
 }
 
@@ -311,18 +311,18 @@ pub struct SubCallerAddArgs {
 #[derive(Args)]
 pub struct SubCallerMeArgs {
     /// Do not save UID in the caller profile
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub no_uid: bool,
     /// Do not save GID in the caller profile
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub no_gid: bool,
     /// Additionally compare canonical caller paths during verification
-    #[clap(long, value_parser)]
+    #[clap(long)]
     pub canonicalize: bool,
     /// Encrypt caller profiles.
     /// Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
     /// Leave empty ("") to use existing encryption profile in configuration file.
-    #[clap(long, value_parser, verbatim_doc_comment)]
+    #[clap(long, verbatim_doc_comment)]
     pub encrypt: Option<String>,
 }
 
@@ -359,7 +359,7 @@ impl TypedValueParser for UnlockOptionsValueParser {
         let inner = NonEmptyStringValueParser::new();
         let val = inner.parse_ref(cmd, arg, value)?;
         UnlockOptions::from_str(&val)
-            .map_err(|e| clap::Error::raw(clap::ErrorKind::InvalidValue, e.to_string()))
+            .map_err(|e| clap::Error::raw(clap::error::ErrorKind::InvalidValue, e.to_string()))
     }
 }
 
