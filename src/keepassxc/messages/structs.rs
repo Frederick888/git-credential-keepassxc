@@ -611,7 +611,7 @@ impl GetDatabaseGroupsResponse {
     pub fn get_flat_groups(&self) -> Vec<FlatGroup> {
         self.get_groups()
             .iter()
-            .map(Group::get_flat_groups)
+            .map(|g| g.get_flat_groups(vec![]))
             .fold(vec![], |mut acc, mut x| {
                 acc.append(&mut x);
                 acc

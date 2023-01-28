@@ -18,27 +18,30 @@ impl Group {
         }
     }
 
-    pub fn get_flat_groups(&self) -> Vec<FlatGroup> {
-        let flat_self = FlatGroup::new(&self.name, &self.uuid);
+    pub fn get_flat_groups<'a>(&'a self, mut parents: Vec<&'a str>) -> Vec<FlatGroup<'a>> {
+        let flat_self = FlatGroup::new(&self.name, &self.uuid, &parents);
+        parents.push(&self.name);
         let mut flat_groups = vec![flat_self];
         for child in &self.children {
-            flat_groups.extend(child.get_flat_groups());
+            flat_groups.extend(child.get_flat_groups(parents.clone()));
         }
         flat_groups
     }
 }
 
 #[derive(Clone, Serialize, Deserialize, Default, Debug)]
-pub struct FlatGroup {
-    pub name: String,
-    pub uuid: String,
+pub struct FlatGroup<'a> {
+    pub name: &'a str,
+    pub uuid: &'a str,
+    pub parents: Vec<&'a str>,
 }
 
-impl FlatGroup {
-    pub fn new<T: Into<String>>(name: T, uuid: T) -> Self {
+impl<'a> FlatGroup<'a> {
+    pub fn new(name: &'a str, uuid: &'a str, parents: &[&'a str]) -> Self {
         Self {
-            name: name.into(),
-            uuid: uuid.into(),
+            name,
+            uuid,
+            parents: Vec::from(parents),
         }
     }
 }

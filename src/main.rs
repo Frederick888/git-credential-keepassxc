@@ -21,6 +21,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
+use tabwriter::TabWriter;
 use utils::callers::CurrentCaller;
 use utils::*;
 
@@ -723,11 +724,11 @@ fn store_login<T: AsRef<Path>>(
             let group_uuid = gg_resp
                 .get_flat_groups()
                 .iter()
-                .filter(|g| &g.name == group)
-                .map(|g| g.uuid.clone())
+                .filter(|g| g.name == group)
+                .map(|g| g.uuid)
                 .next()
                 .ok_or_else(|| anyhow!("Failed to find group {group}"))?;
-            (group.clone(), group_uuid)
+            (group.clone(), group_uuid.to_owned())
         } else {
             (database.group.clone(), database.group_uuid.clone())
         };
@@ -766,6 +767,52 @@ fn lock_database<T: AsRef<Path>>(config_path: T) -> Result<()> {
     let (ld_resp, _) = ld_req.send(client_id, false)?;
 
     ld_resp.check(&ld_req.get_action())
+}
+
+fn get_groups<T: AsRef<Path>>(
+    config_path: T,
+    unlock_options: &Option<UnlockOptions>,
+    args: &cli::SubGroupsArgs,
+) -> Result<()> {
+    let config = Config::read_from(config_path.as_ref())?;
+    verify_caller(&config)?;
+    // start session
+    let (client_id, _, _) = start_session()?;
+
+    let _ = associated_databases(&config, &client_id, unlock_options)?;
+
+    let gg_req = GetDatabaseGroupsRequest::new();
+    let (gg_resp, gg_resp_raw) = gg_req.send(client_id, false)?;
+
+    if args.raw {
+        io::stdout().write_all(gg_resp_raw.as_bytes())?;
+    } else {
+        let mut tw = TabWriter::new(io::stdout());
+        tw.write_all("Parents\tName\tUUID\n".as_bytes())?;
+        tw.write_all("--\t--\t--\n".as_bytes())?;
+        let groups = gg_resp.get_flat_groups();
+        for group in groups {
+            let parents = group
+                .parents
+                .iter()
+                .map(|p| {
+                    if p.contains("->") {
+                        format!("\"{}\"", p.replace('"', "\\\""))
+                    } else {
+                        p.to_string()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" -> ");
+            tw.write_fmt(format_args!(
+                "{}\t{}\t{}\n",
+                parents, group.name, group.uuid
+            ))?;
+        }
+        tw.flush()?;
+    }
+
+    Ok(())
 }
 
 fn generate_password<T: AsRef<Path>>(
@@ -938,6 +985,7 @@ fn real_main() -> Result<()> {
         }
         cli::Subcommands::Erase(_) => erase_login(),
         cli::Subcommands::Lock(_) => lock_database(config_path),
+        cli::Subcommands::Groups(groups_args) => get_groups(config_path, &args.unlock, groups_args),
         cli::Subcommands::GeneratePassword(generate_password_args) => {
             generate_password(config_path, generate_password_args)
         }
