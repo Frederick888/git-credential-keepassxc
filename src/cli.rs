@@ -20,7 +20,7 @@ pub struct MainArgs {
     /// Takes one argument in the format of [<MAX_RETRIES>[,<INTERVAL_MS>]]. Use 0 to retry indefinitely. The default interval is 1000ms.
     #[clap(long, value_parser, verbatim_doc_comment)]
     pub unlock: Option<UnlockOptions>,
-    /// Group(s) to get credentials from or the group to store the credential to
+    /// Group(s) to get credentials from
     #[clap(long, value_parser)]
     pub group: Vec<String>,
     /// Get credentials from the dedicated group created by 'configure' subcommand
@@ -92,7 +92,7 @@ pub struct SubGetArgs {
     /// Try getting TOTP
     #[clap(long, value_parser, conflicts_with = "raw")]
     pub totp: bool,
-    /// Group(s) to get credentials from or the group to store the credential to
+    /// Group(s) to get credentials from
     #[clap(long, value_parser, conflicts_with = "raw")]
     pub group: Vec<String>,
     /// Get credentials from the dedicated group created by 'configure' subcommand
@@ -149,7 +149,7 @@ impl GetOperation for SubGetArgs {
 /// Get TOTP
 #[derive(Args)]
 pub struct SubTotpArgs {
-    /// Group(s) to get credentials from or the group to store the credential to
+    /// Group(s) to get credentials from
     #[clap(long, value_parser)]
     pub group: Vec<String>,
     /// Get credentials from the dedicated group created by 'configure' subcommand
@@ -199,7 +199,10 @@ impl HasLocalEntryFilters for SubTotpArgs {}
 /// Store credential (used by Git)
 #[derive(Args)]
 pub struct SubStoreArgs {
-    /// Group(s) to get credentials from or the group to store the credential to
+    /// Create new entries in specified group instead of the one created by 'configure' subcommand
+    #[clap(long, value_parser)]
+    pub create_in: Option<String>,
+    /// Group(s) to get credentials from
     #[clap(long, value_parser)]
     pub group: Vec<String>,
     /// Get credentials from the dedicated group created by 'configure' subcommand

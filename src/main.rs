@@ -717,7 +717,7 @@ fn store_login<T: AsRef<Path>>(
             );
         }
         let database = databases.first().unwrap();
-        let (group, group_uuid) = if let Some(group) = args.group.first() {
+        let (group, group_uuid) = if let Some(ref group) = args.create_in {
             let gg_req = GetDatabaseGroupsRequest::new();
             let (gg_resp, _) = gg_req.send(&client_id, false)?;
             let group_uuid = gg_resp
