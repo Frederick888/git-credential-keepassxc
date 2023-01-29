@@ -25,12 +25,12 @@ Experimental pre-built binaries are available at the [GitHub release page](https
 
 `git-credential-keepassxc` has the following optional features:
 
-| Feature         | Description                                                                                                                      |
-|-----------------|----------------------------------------------------------------------------------------------------------------------------------|
-| `all`           | Enable all features                                                                                                              |
-| `notification`  | Desktop notifications, helpful if `git-credential-keepassxc` is used in scripts                                                  |
-| `yubikey`       | Allow encrypting configuration file using YubiKey HMAC-SHA1                                                                      |
-| `strict-caller` | Enforce caller limiting when there are associated databases (read the [Limiting callers](#limiting-callers) section for details) |
+| Feature         | Description                                                                                                      |
+|-----------------|------------------------------------------------------------------------------------------------------------------|
+| `all`           | Enable all features                                                                                              |
+| `notification`  | Desktop notifications, helpful if `git-credential-keepassxc` is used in scripts                                  |
+| `yubikey`       | Allow encrypting configuration file using YubiKey HMAC-SHA1                                                      |
+| `strict-caller` | Enforce caller limiting when associated databases exist (see [Limiting callers](#limiting-callers) for details!) |
 
 You can use [cargo-update](https://crates.io/crates/cargo-update) to make the features persistent across updates.
 
@@ -127,7 +127,7 @@ Note if you have more than one databases, it's recommended to use the same group
 1. In KeePassXC, go to Tools -> Settings -> Browser Integration -> Advanced, enable `Return advanced string fields which start with "KPH: "` (this is enabled by default)
 0. Open the entry you'd like to hide
 0. Go to Advanced
-0. Add an additional attribute `KPH: git` (the space after colon is mandatory) of which the value is `false`
+0. Add an additional attribute `KPH: git` (the space after colon is required) of which the value is `false`
 
 ### A note on `git-credential-keepassxc store`
 
@@ -145,7 +145,7 @@ Accepted fields in input (unknown fields are ignored):
 - `username`
 - `password` (`store` requests only)
 
-Responses are in the same format. Alternatively `get`, `totp`, `store`, and `generate-password` responses can also be formatted in JSON with `--json` flag; `get` and `totp` also support `--raw` flag.
+Responses are in the same format. Alternatively `get`, `totp`, and `generate-password` responses can also be formatted in JSON with `--json` flag; `get` and `totp` also support `--raw` flag.
 
 For instance, to connect to a Remote Desktop service:
 
