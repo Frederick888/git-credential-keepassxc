@@ -422,6 +422,7 @@ fn get_logins_for<T: AsRef<str>>(
         .into_iter()
         .filter(|e| e.expired.is_none() || !e.expired.as_ref().unwrap().0)
         .collect();
+    info!("KeePassXC returned {} login(s)", login_entries.len());
 
     if filters.kph {
         let num_entries = login_entries.len();
@@ -540,7 +541,6 @@ where
 
     let (mut login_entries, login_entries_raw) =
         get_logins_for(&config, &client_id, &url, &entry_filters, unlock_options)?;
-    info!("KeePassXC returned {} login(s)", login_entries.len());
 
     if args.raw() {
         // GetMode::PasswordAndTotp in raw mode is banned in CLI
