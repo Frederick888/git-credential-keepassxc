@@ -16,7 +16,7 @@ pub struct MainArgs {
     /// Specify KeePassXC socket path (environment variable: KEEPASSXC_BROWSER_SOCKET_PATH)
     #[clap(short, long, value_parser)]
     pub socket: Option<String>,
-    /// Try unlocking database. Applies to get, totp, and store only.
+    /// Try unlocking database. Applies to get, totp, store, and groups only.
     /// Takes one argument in the format of [<MAX_RETRIES>[,<INTERVAL_MS>]]. Use 0 to retry indefinitely. The default interval is 1000ms.
     #[clap(long, value_parser, verbatim_doc_comment)]
     pub unlock: Option<UnlockOptions>,
@@ -53,6 +53,7 @@ pub enum Subcommands {
     Store(SubStoreArgs),
     Erase(SubEraseArgs),
     Lock(SubLockArgs),
+    Groups(SubGroupsArgs),
     GeneratePassword(SubGeneratePasswordArgs),
     Configure(SubConfigureArgs),
     Caller(SubCallerArgs),
@@ -69,6 +70,7 @@ impl Subcommands {
             Self::Store(_) => "store",
             Self::Erase(_) => "erase",
             Self::Lock(_) => "lock",
+            Self::Groups(_) => "groups",
             Self::GeneratePassword(_) => "generate-password",
             Self::Configure(_) => "configure",
             Self::Caller(_) => "caller",
@@ -232,6 +234,14 @@ pub struct SubEraseArgs {}
 /// Lock KeePassXC database
 #[derive(Args)]
 pub struct SubLockArgs {}
+
+/// List KeePassXC database groups
+#[derive(Args)]
+pub struct SubGroupsArgs {
+    /// Show raw output from KeePassXC
+    #[clap(long, value_parser)]
+    pub raw: bool,
+}
 
 /// Generate a password
 #[derive(Args)]
