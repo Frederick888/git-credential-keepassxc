@@ -1,3 +1,4 @@
+use crate::utils::base64;
 use crate::utils::callers::CurrentCaller;
 #[allow(unused_imports)]
 use crate::{debug, error, info, warn};

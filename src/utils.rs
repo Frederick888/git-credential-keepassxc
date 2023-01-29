@@ -1,3 +1,4 @@
+pub mod base64;
 pub mod callers;
 pub mod socket;
 
