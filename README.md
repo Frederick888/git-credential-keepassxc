@@ -25,12 +25,12 @@ Experimental pre-built binaries are available at the [GitHub release page](https
 
 `git-credential-keepassxc` has the following optional features:
 
-| Feature         | Description                                                                                                                      |
-|-----------------|----------------------------------------------------------------------------------------------------------------------------------|
-| `all`           | Enable all features                                                                                                              |
-| `notification`  | Desktop notifications, helpful if `git-credential-keepassxc` is used in scripts                                                  |
-| `yubikey`       | Allow encrypting configuration file using YubiKey HMAC-SHA1                                                                      |
-| `strict-caller` | Enforce caller limiting when there are associated databases (read the [Limiting callers](#limiting-callers) section for details) |
+| Feature         | Description                                                                                                      |
+|-----------------|------------------------------------------------------------------------------------------------------------------|
+| `all`           | Enable all features                                                                                              |
+| `notification`  | Desktop notifications, helpful if `git-credential-keepassxc` is used in scripts                                  |
+| `yubikey`       | Allow encrypting configuration file using YubiKey HMAC-SHA1                                                      |
+| `strict-caller` | Enforce caller limiting when associated databases exist (see [Limiting callers](#limiting-callers) for details!) |
 
 You can use [cargo-update](https://crates.io/crates/cargo-update) to make the features persistent across updates.
 
@@ -52,14 +52,12 @@ Similar to the browser extensions, `git-credential-keepassxc` needs to be associ
 
 ```sh
 $ git-credential-keepassxc configure
-$ git config --global credential.helper keepassxc 
+$ git config --global --replace-all credential.helper 'keepassxc --git-groups'
 ```
 
-A group (by default `Git`) will be created to store new logins.
+A dedicated group (by default `Git`) will be created. If you want to use credentials from other groups, please check out [Filtering results](#filtering-results).
 
 For more options, run `git-credential-keepassxc -h` to show the help message.
-
-***NB*** If you plan to fetch or push Git repositories, you may want to configure [Ignoring certain entries](#ignoring-certain-entries) to avoid potential **data loss**.
 
 ## Limiting callers
 
@@ -79,7 +77,7 @@ Press Enter to continue...
 # then add Git
 $ git-credential-keepassxc caller add --uid "$(id -u)" --gid "$(id -g)" "$(command -v git)"
 # you may also need to add other executables in /usr/lib/git-core/
-# run `git config --global credential.helper 'keepassxc -vv'` to enable logs if any Git subcommand is blocked
+# run `git config --global --replace-all credential.helper 'keepassxc -vv --git-groups'` to enable logs if any Git subcommand is blocked
 
 $ sh -c 'printf "url=https://example.com\nusername=foo\n" | git-credential-keepassxc get'
 May 10 12:51:56.108 ERRO /usr/bin/bash (uid=1000, gid=1000) is not allowed to call git-credential-keepassxc, Caused by: N/A
@@ -112,16 +110,30 @@ $ git-credential-keepassxc decrypt
 
 For more details, see: [wiki/Encryption](https://github.com/Frederick888/git-credential-keepassxc/wiki/Encryption)
 
-## Ignoring certain entries
+## Filtering results
 
-You can hide certain entries from `git-credential-keepassxc` by adding the `KPH: git` attributes to them. (For example, when you have GitLab password and access token in two entries, and you only need the token via `git-credential-keepassxc`.)
+### By group names
+
+`--group <GROUP>`. This option can be repeated. This is the name of the group itself. Paths are not supported.
+
+### By dedicated Git group names
+
+`--git-groups`. This uses the names of the groups created by `git-credential-keepassxc configure [--group <GROUP>]`.
+
+Note if you have more than one databases, it's recommended to use the same group name, as this option filters all results using all the group names.
+
+### By an advanced string field
 
 1. In KeePassXC, go to Tools -> Settings -> Browser Integration -> Advanced, enable `Return advanced string fields which start with "KPH: "` (this is enabled by default)
 0. Open the entry you'd like to hide
 0. Go to Advanced
 0. Add an additional attribute `KPH: git` (the space after colon is required) of which the value is `false`
 
-This also prevents these entries from being overwritten by `git-credential-keepassxc`, which is important if you use `git-credential-keepassxc` to fetch/push Git repositories over HTTP/S, since Git may try to update your passwords.
+### A note on `git-credential-keepassxc store`
+
+Since `git-credential-keepassxc store` consists of looking up existing entries and then updating or creating one, these filters can also stop it from updating certain entries.
+
+This is *important* as Git may call `git-credential-keepassxc store` after validating a password, and it can update your login password entry rather than the API token one.
 
 ## Scripting
 
@@ -133,7 +145,7 @@ Accepted fields in input (unknown fields are ignored):
 - `username`
 - `password` (`store` requests only)
 
-Responses are in the same format. Alternatively `get`, `totp`, `store`, and `generate-password` responses can also be formatted in JSON with `--json` flag; `get` and `totp` also support `--raw` flag.
+Responses are in the same format. Alternatively `get`, `totp`, and `generate-password` responses can also be formatted in JSON with `--json` flag; `get` and `totp` also support `--raw` flag.
 
 For instance, to connect to a Remote Desktop service:
 
@@ -153,6 +165,6 @@ xfreerdp /v:"$HOST:$PORT" /cert-tofu /cert:ignore \
     /t:Example +decorations /u:"$USERNAME" /p:"$PASSWORD"
 ```
 
-## Security
+## Troubleshooting and more
 
-See: [wiki/Security](https://github.com/Frederick888/git-credential-keepassxc/wiki/Security)
+[Wiki](https://github.com/Frederick888/git-credential-keepassxc/wiki)
