@@ -120,7 +120,7 @@ For more details, see: [wiki/Encryption](https://github.com/Frederick888/git-cre
 
 `--git-groups`. This uses the names of the groups created by `git-credential-keepassxc configure [--group <GROUP>]`.
 
-Note if you have more than one databases, it's recommended to use the same group name, as this option filters all results using all the group names.
+Note if you have more than one database, it's recommended to use the same group name, as this option filters all results using all the group names.
 
 ### By an advanced string field
 
