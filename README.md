@@ -51,6 +51,7 @@ $ cargo install-update git-credential-keepassxc
 Similar to the browser extensions, `git-credential-keepassxc` needs to be associated with KeePassXC first:
 
 ```sh
+$ git-credential-keepassxc caller me  # only required if compiled with strict-caller, see Limiting callers
 $ git-credential-keepassxc configure
 $ git config --global --replace-all credential.helper 'keepassxc --git-groups'
 ```
