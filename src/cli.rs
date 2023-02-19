@@ -7,7 +7,7 @@ use std::{num, str::FromStr};
 
 /// Helper that allows Git and shell scripts to use KeePassXC as credential store
 #[derive(Parser)]
-#[clap(author, version, about, long_about = None)]
+#[clap(author, version, long_version = long_version(), about, long_about = None)]
 #[clap(propagate_version = true)]
 pub struct MainArgs {
     /// Specify configuration JSON file path
@@ -43,6 +43,30 @@ impl HasEntryFilters for MainArgs {
             groups: self.group.clone(),
             git_groups: self.git_groups,
         }
+    }
+}
+
+fn long_version() -> &'static str {
+    let version = env!("CARGO_PKG_VERSION");
+    let mut features = vec![];
+    if cfg!(feature = "strict-caller") {
+        features.push("strict-caller".to_owned());
+    }
+    if cfg!(feature = "notification") {
+        features.push("notification".to_owned());
+    }
+    if cfg!(feature = "encryption") {
+        features.push("encryption".to_owned());
+    }
+    if cfg!(feature = "yubikey") {
+        features.push("yubikey".to_owned());
+    }
+    if features.is_empty() {
+        version
+    } else {
+        let features = features.join(", ");
+        let version = format!("{version} ({features})");
+        Box::leak(Box::new(version)).as_str()
     }
 }
 
