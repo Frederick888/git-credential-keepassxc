@@ -119,25 +119,53 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
+        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl]
         rust_toolchain: [stable]
-        features: [default, notification, yubikey, all]
+        features: [default, all]
         experimental: [false]
         include:
           - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            rust_toolchain: stable
+            features: default
+            experimental: false
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            rust_toolchain: stable
+            features: yubikey
+            experimental: false
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
             rust_toolchain: nightly
             features: all
             experimental: true
           - os: macos-latest
-            rust_toolchain: nightly
+            target: x86_64-apple-darwin
+            rust_toolchain: stable
+            features: default
+            experimental: false
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            rust_toolchain: stable
             features: all
-            experimental: true
+            experimental: false
           - os: windows-latest
-            rust_toolchain: nightly
+            target: x86_64-pc-windows-msvc
+            rust_toolchain: stable
+            features: default
+            experimental: false
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            rust_toolchain: stable
             features: all
-            experimental: true
+            experimental: false
     steps:
       - uses: actions/checkout@v3
+      - name: Install Linux Dependencies
+        if: contains(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get install -y musl-tools
       - name: Install macOS Dependencies
         if: contains(matrix.os, 'macos')
         run: |
@@ -149,11 +177,35 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_toolchain }}
+      - name: Add Linux Targets
+        if: contains(matrix.os, 'ubuntu')
+        run: |
+          rustup target add x86_64-unknown-linux-gnu
+          rustup target add x86_64-unknown-linux-musl
       - name: Add macOS Targets
         if: contains(matrix.os, 'macos')
         run: |
           rustup target add x86_64-apple-darwin
           rustup target add aarch64-apple-darwin
+      - name: Determine Readable Target Name
+        id: readable_target
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "macos"* ]]; then
+            printf 'name=%s\n' "universal" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          case "${{ matrix.target }}" in
+            x86_64-unknown-linux-gnu)
+              printf 'name=%s\n' "gnu"  >> $GITHUB_OUTPUT
+              ;;
+            x86_64-unknown-linux-musl)
+              printf 'name=%s\n' "musl" >> $GITHUB_OUTPUT
+              ;;
+            x86_64-pc-windows-msvc)
+              printf 'name=%s\n' "msvc" >> $GITHUB_OUTPUT
+              ;;
+          esac
 
       - name: Cache
         uses: actions/cache@v3
@@ -162,10 +214,11 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.cachekey }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ matrix.features }}-git-${{ github.sha }}
+          key: build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.cachekey }}-target-${{ steps.readable_target.outputs.name }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ matrix.features }}-git-${{ github.sha }}
           restore-keys: |
-            build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.cachekey }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ matrix.features }}-
-            build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.cachekey }}-lock-${{ hashFiles('Cargo.lock') }}-
+            build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.cachekey }}-target-${{ steps.readable_target.outputs.name }}-lock-${{ hashFiles('Cargo.lock') }}-features-${{ matrix.features }}-
+            build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.cachekey }}-target-${{ steps.readable_target.outputs.name }}-lock-${{ hashFiles('Cargo.lock') }}-
+            build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.cachekey }}-target-${{ steps.readable_target.outputs.name }}-
             build-${{ runner.os }}-rustc-${{ steps.rust_toolchain.outputs.cachekey }}-
             build-${{ runner.os }}-
 
@@ -173,7 +226,9 @@ jobs:
         if: "!contains(matrix.os, 'macos')"
         shell: bash
         run: |
-          cargo build --release --features=${{ matrix.features }}
+          cargo build --target=${{ matrix.target }} --release --features=${{ matrix.features }}
+          [[ "${{ matrix.os }}" == "windows"* ]] && EXT='.exe' || EXT=''
+          mv -f "target/${{ matrix.target }}/release/git-credential-keepassxc${EXT}" "target/release/git-credential-keepassxc${EXT}"
       - name: "Build (macOS x86_64)"
         if: contains(matrix.os, 'macos')
         shell: bash
