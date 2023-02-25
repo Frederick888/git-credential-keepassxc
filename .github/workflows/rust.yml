@@ -84,7 +84,10 @@ jobs:
         features:
           - [default]
           - [all]
-          - [notification, encryption, yubikey]
+        include:
+          - os: ubuntu-latest
+            rust_toolchain: stable
+            features: [notification, encryption, yubikey]
     steps:
       - uses: actions/checkout@v3
       - name: Install Rust Toolchain
