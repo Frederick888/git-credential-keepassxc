@@ -63,9 +63,7 @@ pub struct Config {
 
 impl Config {
     pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
+        Default::default()
     }
 
     pub fn read_from<T: AsRef<Path>>(config_path: T) -> Result<Self> {

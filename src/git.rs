@@ -69,7 +69,7 @@ macro_rules! message_from_to_string {
 
             fn from_str(s: &str) -> Result<Self, Self::Err> {
                 let pairs: Vec<_> = s.split("\n").collect();
-                let mut msg = $name { ..Default::default() };
+                let mut msg = $name::default();
                 for pair in pairs {
                     if pair.len() == 0 {
                         continue;
