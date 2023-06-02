@@ -1,3 +1,17 @@
+<a name="v0.13.0"></a>
+## v0.13.0 (2023-06-02)
+
+
+#### Features
+
+*   Show features in --version output ([7cf9bc5c](https://github.com/Frederick888/git-credential-keepassxc/commit/7cf9bc5ca73132c7f84f7586fa5a43232db78c29))
+
+#### Bug Fixes
+
+*   Ignore unknown keys in input ([57a7d9ce](https://github.com/Frederick888/git-credential-keepassxc/commit/57a7d9ce269cb3f06ef2f6e7448edf9af9b21afb))
+
+
+
 <a name="v0.12.0"></a>
 ## v0.12.0 (2023-01-29)
 
