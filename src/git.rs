@@ -85,10 +85,7 @@ macro_rules! message_from_to_string {
                                 msg.$field_name = Some(pair[split_at + 1..].to_owned());
                             },
                         )*
-                            _ => return Err(GitMessageParsingError {
-                                message: format!("Unknown key {}", key),
-                                source: s.to_owned(),
-                            }),
+                            _ => {},
                     }
                 }
                 Ok(msg)
@@ -197,5 +194,17 @@ mod tests {
             .collect();
         message.set_string_fields(&advanced_fields);
         assert_eq!(string1 + &string2 + "\n", message.to_string());
+    }
+
+    #[test]
+    fn test_03_ignore_unknown_fields() {
+        let string = "url=http://example.com\nfoo=bar\n".to_owned();
+        let message = GitCredentialMessage::from_str(string.as_str()).unwrap();
+        assert!(message.url.is_some());
+        assert_eq!(message.url.as_ref().unwrap().as_str(), "http://example.com");
+        assert_eq!(
+            "url=http://example.com\n\n".to_string(),
+            message.to_string()
+        );
     }
 }
