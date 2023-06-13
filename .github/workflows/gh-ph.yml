@@ -3,6 +3,10 @@ name: Pull request history
 on:
   pull_request:
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   gh-ph:
     name: Add commit history to pull request description
