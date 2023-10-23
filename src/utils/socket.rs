@@ -163,8 +163,7 @@ impl SocketPath for WindowsSocketPathNatMsg {
     #[cfg(target_os = "windows")]
     fn get_path(&self) -> Result<PathBuf> {
         let username = std::env::var("USERNAME")?;
-        let result =
-            PathBuf::from(r#"\\.\pipe\keepassxc\"#.to_owned() + &username + r#"\kpxc_server"#);
+        let result = PathBuf::from(r"\\.\pipe\keepassxc\".to_owned() + &username + r"\kpxc_server");
         connectable_or_error(result)
     }
 
