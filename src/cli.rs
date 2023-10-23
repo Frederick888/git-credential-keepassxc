@@ -62,10 +62,17 @@ fn long_version() -> &'static str {
         features.push("yubikey".to_owned());
     }
     if features.is_empty() {
-        version
+        #[cfg(debug_assertions)]
+        let version = format!("{version} [debug]");
+        #[cfg(not(debug_assertions))]
+        let version = format!("{version} [release]");
+        Box::leak(Box::new(version)).as_str()
     } else {
         let features = features.join(", ");
-        let version = format!("{version} ({features})");
+        #[cfg(debug_assertions)]
+        let version = format!("{version} [debug] ({features})");
+        #[cfg(not(debug_assertions))]
+        let version = format!("{version} [release] ({features})");
         Box::leak(Box::new(version)).as_str()
     }
 }
