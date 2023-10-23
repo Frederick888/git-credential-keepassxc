@@ -24,7 +24,7 @@ aes-gcm = { version = "0.10.1", default-features = false }
 anyhow = "1.0.28"
 base64 = "0.21.0"
 clap = { version = "3.1.18", features = ["derive"] }
-crypto_box = "0.8.1"
+crypto_box = "0.9.1"
 directories-next = "2.0.0"
 notify-rust = { version = "4.5.9", optional = true }
 num_enum = "0.7.0"

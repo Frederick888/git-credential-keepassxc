@@ -543,9 +543,9 @@ impl Database {
         id_seckey: crypto_box::SecretKey,
         group: crate::keepassxc::Group,
     ) -> Self {
-        let id_seckey_b64 = base64::encode(id_seckey.as_bytes());
+        let id_seckey_b64 = base64::encode(id_seckey.to_bytes());
         let id_pubkey = id_seckey.public_key();
-        let id_pubkey_b64 = base64::encode(id_pubkey.as_bytes());
+        let id_pubkey_b64 = base64::encode(id_pubkey.to_bytes());
         Self {
             id,
             key: id_seckey_b64,
@@ -877,7 +877,7 @@ mod tests {
             assert_eq!(config.count_databases(), 1);
             let databases = config.get_databases().unwrap();
             assert_eq!(databases[0].id, database.id);
-            assert_eq!(databases[0].key, base64::encode(secret_key.as_bytes()));
+            assert_eq!(databases[0].key, base64::encode(secret_key.to_bytes()));
         }
 
         fs::remove_file(config_path).unwrap();
@@ -920,7 +920,7 @@ mod tests {
             assert_eq!(config.count_databases(), 1);
             let databases = config.get_databases().unwrap();
             assert_eq!(databases[0].id, database.id);
-            assert_eq!(databases[0].key, base64::encode(secret_key.as_bytes()));
+            assert_eq!(databases[0].key, base64::encode(secret_key.to_bytes()));
             let decrypted = config.decrypt_databases().unwrap();
             assert_eq!(decrypted, 1);
             config.write_to(&config_path).unwrap();
