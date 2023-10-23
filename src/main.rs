@@ -362,6 +362,9 @@ fn verify_caller(config: &Config) -> Result<Option<CurrentCaller>> {
     if config.count_callers() == 0
         && (cfg!(not(feature = "strict-caller")) || config.count_databases() == 0)
     {
+        #[cfg(not(feature = "strict-caller"))]
+        info!("Caller verification skipped as no caller profiles defined");
+        #[cfg(feature = "strict-caller")]
         info!(
             "Caller verification skipped as no caller profiles defined and strict-caller disabled"
         );
