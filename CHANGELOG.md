@@ -1,3 +1,17 @@
+<a name="v0.14.0"></a>
+## v0.14.0 (2023-10-24)
+
+
+#### Bug Fixes
+
+*   Wrong strict-caller log when skipping caller verification ([2b322050](https://github.com/Frederick888/git-credential-keepassxc/commit/2b322050bd29b5ce4a39462c1285fda14953240a))
+
+#### Features
+
+*   Show build type (debug/release) in --version ([acd322f5](https://github.com/Frederick888/git-credential-keepassxc/commit/acd322f5b491478ffeae320349ef78dac8e21662))
+
+
+
 <a name="v0.13.0"></a>
 ## v0.13.0 (2023-06-02)
 
