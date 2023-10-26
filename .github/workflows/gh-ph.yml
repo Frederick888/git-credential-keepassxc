@@ -10,6 +10,7 @@ permissions:
 jobs:
   gh-ph:
     name: Add commit history to pull request description
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
