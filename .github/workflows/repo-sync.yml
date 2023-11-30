@@ -1,17 +1,28 @@
 name: GitLab Sync
 
-on: [push, create, delete]
+on: push
 
 jobs:
-  sync:
-    name: Synchronise to GitLab
+  branch-sync:
+    name: Synchronise Branches
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - uses: action-pack/gitlab-sync@v3
-        with:
-          username: Frederick888
-          url: "https://git.tsundere.moe/Frederick888/git-credential-keepassxc.git"
-          token: ${{ secrets.GITLAB_ACCESS_TOKEN }}
+    - name: repo-sync
+      uses: wei/git-sync@v3
+      with:
+        source_repo: "https://github.com/Frederick888/git-credential-keepassxc.git"
+        source_branch: "refs/remotes/source/*"
+        destination_repo: "https://Frederick888:${{ secrets.GITLAB_ACCESS_TOKEN }}@git.tsundere.moe/Frederick888/git-credential-keepassxc.git"
+        destination_branch: "refs/heads/*"
+
+  tag-sync:
+    name: Synchronise Tags
+    runs-on: ubuntu-latest
+    steps:
+    - name: repo-sync
+      uses: wei/git-sync@v3
+      with:
+        source_repo: "https://github.com/Frederick888/git-credential-keepassxc.git"
+        source_branch: "refs/tags/*"
+        destination_repo: "https://Frederick888:${{ secrets.GITLAB_ACCESS_TOKEN }}@git.tsundere.moe/Frederick888/git-credential-keepassxc.git"
+        destination_branch: "refs/tags/*"
