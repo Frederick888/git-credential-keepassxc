@@ -7,13 +7,12 @@ use anyhow::{anyhow, Context, Result};
 #[cfg(all(test, feature = "yubikey"))]
 use mockall::automock;
 use serde::{de, Deserialize, Serialize};
-use std::cell::RefCell;
 use std::fs;
 use std::io::prelude::*;
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
-use std::string::ToString;
+use std::{cell::RefCell, fmt::Display};
 
 #[cfg(feature = "encryption")]
 use {
@@ -670,12 +669,12 @@ impl Encryption {
     }
 }
 
-impl ToString for Encryption {
-    fn to_string(&self) -> String {
+impl Display for Encryption {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Encryption::ChallengeResponse {
                 slot, challenge, ..
-            } => format!("{}:{}:{}", self.method(), slot, challenge),
+            } => write!(f, "{}:{}:{}", self.method(), slot, challenge),
         }
     }
 }

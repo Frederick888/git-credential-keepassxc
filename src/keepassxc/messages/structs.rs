@@ -200,7 +200,7 @@ impl GenericResponseWrapper {
     fn error_message(&self) -> String {
         format!(
             "Request {} failed, {} (code: {})",
-            self.action.to_string(),
+            self.action,
             self.error.as_ref().map_or_else(|| "N/A", |e| e.as_str()),
             self.error_code
                 .as_ref()
