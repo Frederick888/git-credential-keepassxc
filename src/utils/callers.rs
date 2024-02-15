@@ -5,8 +5,9 @@ use anyhow::{anyhow, Result};
 #[cfg(unix)]
 use std::ops::Deref;
 use std::path::PathBuf;
-use sysinfo::{get_current_pid, PidExt, ProcessExt, RefreshKind, System, SystemExt};
+use sysinfo::{get_current_pid, ProcessRefreshKind, RefreshKind, System, UpdateKind};
 
+#[derive(Debug)]
 pub struct CurrentCaller {
     pub path: PathBuf,
     pub pid: u32,
@@ -23,7 +24,13 @@ impl CurrentCaller {
         let pid =
             get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;
         info!("PID: {}", pid);
-        let mut system = System::new_with_specifics(RefreshKind::new());
+        let mut system = System::new_with_specifics(
+            RefreshKind::new().with_processes(
+                ProcessRefreshKind::new()
+                    .with_user(UpdateKind::OnlyIfNotSet)
+                    .with_exe(UpdateKind::OnlyIfNotSet),
+            ),
+        );
         system.refresh_process(pid);
         let proc = system
             .process(pid)
@@ -37,7 +44,9 @@ impl CurrentCaller {
         let pproc = system
             .process(ppid)
             .ok_or_else(|| anyhow!("Failed to retrieve information of parent process"))?;
-        let ppath = pproc.exe();
+        let ppath = pproc
+            .exe()
+            .ok_or_else(|| anyhow!("Failed to determine parent process path"))?;
         info!("Parent process path: {}", ppath.to_string_lossy());
         let canonical_ppath = ppath.canonicalize();
         if canonical_ppath.is_ok() {
@@ -310,7 +319,7 @@ mod tests {
     #[test]
     fn test_05_get_current_caller() {
         let current_caller = CurrentCaller::new();
-        assert!(current_caller.is_ok());
+        assert!(current_caller.is_ok(), "{:?}", current_caller);
         if let Ok(current_caller) = current_caller {
             assert!(!current_caller.path.to_string_lossy().is_empty());
             assert!(current_caller.pid > 0);

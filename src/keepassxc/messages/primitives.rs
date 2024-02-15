@@ -54,10 +54,10 @@ macro_rules! define_action {
             }
         }
 
-        impl ToString for KeePassAction {
-            fn to_string(&self) -> String {
+        impl std::fmt::Display for KeePassAction {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 match *self {
-                    $(Self::$variant => $string.to_owned(),)*
+                    $(Self::$variant => write!(f, "{}", $string),)*
                 }
             }
         }

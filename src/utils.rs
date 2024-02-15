@@ -78,7 +78,7 @@ impl std::error::Error for CryptionError {}
 
 #[cfg(unix)]
 fn get_stream() -> Result<Rc<RefCell<UnixStream>>> {
-    thread_local!(static STREAM: OnceCell<Rc<RefCell<UnixStream>>> = OnceCell::new());
+    thread_local!(static STREAM: OnceCell<Rc<RefCell<UnixStream>>> = const { OnceCell::new() });
     STREAM.with(|s| -> Result<_> {
         Ok(s.get_or_try_init(|| -> Result<_> {
             let path = socket::get_socket_path()?;
@@ -99,7 +99,7 @@ fn get_stream() -> Result<Rc<RefCell<UnixStream>>> {
 
 #[cfg(windows)]
 fn get_stream() -> Result<Rc<RefCell<PipeClient>>> {
-    thread_local!(static STREAM: OnceCell<Rc<RefCell<PipeClient>>> = OnceCell::new());
+    thread_local!(static STREAM: OnceCell<Rc<RefCell<PipeClient>>> = const { OnceCell::new() });
     STREAM.with(|s| -> Result<_> {
         Ok(s.get_or_try_init(|| -> Result<_> {
             let path = socket::get_socket_path()?;
@@ -295,7 +295,7 @@ pub fn get_client_box(
     host_public_key: Option<&PublicKey>,
     client_secret_key: Option<&SecretKey>,
 ) -> Result<Rc<SalsaBox>> {
-    thread_local!(static CLIENT_BOX: OnceCell<Rc<SalsaBox>> = OnceCell::new());
+    thread_local!(static CLIENT_BOX: OnceCell<Rc<SalsaBox>> = const { OnceCell::new() });
     CLIENT_BOX.with(|cb| -> Result<_> {
         Ok(cb.get_or_try_init(|| -> Result<_> {
             let client_secret_key = client_secret_key.ok_or_else(||
@@ -476,7 +476,7 @@ mod tests {
 
     #[test]
     fn test_01_cut_jsons_multiple_jsons() {
-        let jsons = vec![
+        let jsons = &[
             "{\"action\":\"test-associate\"}".to_owned(),
             "{\"action\":\"get-logins\",\"message\":\"testing\"}".to_owned(),
             "{\"action\":\"set-login\",\"message\":\"testing\"}".to_owned(),
@@ -491,7 +491,7 @@ mod tests {
 
     #[test]
     fn test_02_cut_jsons_with_escaping() {
-        let jsons = vec![
+        let jsons = &[
             "{\"action\":\"test-associate\",\"message\":\"\\\"\\[\"}".to_owned(),
             "[{\"action\":\"get-logins\",\"message\":\"testing\\]\"}]".to_owned(),
         ];
@@ -505,7 +505,7 @@ mod tests {
 
     #[test]
     fn test_03_discard_multiple_jsons() {
-        let jsons = vec![
+        let jsons = &[
             "{\"action\":\"test-associate\",\"message\":\"\\\"\\[\"}".to_owned()
                 + "[{\"action\":\"get-logins\",\"message\":\"testing\\]\"}]",
             "{\"action\":\"test-associate\",\"message\":\"\\\"\\[\"}".to_owned()

@@ -40,8 +40,8 @@ macro_rules! message_from_to_string {
             pub string_fields: Option<HashMap<String, String>>,
         }
 
-        impl ToString for $name {
-            fn to_string(&self) -> String {
+        impl fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 let mut msg = String::new();
                 $(
                     if let Some(ref value) = self.$field_name {
@@ -60,7 +60,7 @@ macro_rules! message_from_to_string {
                     }
                 }
                 msg.push('\n');
-                msg
+                write!(f, "{}", msg)
             }
         }
 
