@@ -476,7 +476,7 @@ mod tests {
 
     #[test]
     fn test_01_cut_jsons_multiple_jsons() {
-        let jsons = vec![
+        let jsons = &[
             "{\"action\":\"test-associate\"}".to_owned(),
             "{\"action\":\"get-logins\",\"message\":\"testing\"}".to_owned(),
             "{\"action\":\"set-login\",\"message\":\"testing\"}".to_owned(),
@@ -491,7 +491,7 @@ mod tests {
 
     #[test]
     fn test_02_cut_jsons_with_escaping() {
-        let jsons = vec![
+        let jsons = &[
             "{\"action\":\"test-associate\",\"message\":\"\\\"\\[\"}".to_owned(),
             "[{\"action\":\"get-logins\",\"message\":\"testing\\]\"}]".to_owned(),
         ];
@@ -505,7 +505,7 @@ mod tests {
 
     #[test]
     fn test_03_discard_multiple_jsons() {
-        let jsons = vec![
+        let jsons = &[
             "{\"action\":\"test-associate\",\"message\":\"\\\"\\[\"}".to_owned()
                 + "[{\"action\":\"get-logins\",\"message\":\"testing\\]\"}]",
             "{\"action\":\"test-associate\",\"message\":\"\\\"\\[\"}".to_owned()
