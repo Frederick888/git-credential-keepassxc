@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.11.0
+        uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
 
@@ -44,7 +44,7 @@ jobs:
             features: all
             experimental: true
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install Rust Toolchain
         id: rust_toolchain
         uses: dtolnay/rust-toolchain@master
@@ -52,7 +52,7 @@ jobs:
           toolchain: ${{ matrix.rust_toolchain }}
           components: rustfmt, clippy
       - name: Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -86,14 +86,14 @@ jobs:
           - [all]
           - [notification, encryption, yubikey]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install Rust Toolchain
         id: rust_toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_toolchain }}
       - name: Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -134,7 +134,7 @@ jobs:
             features: all
             experimental: true
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install macOS Dependencies
         if: contains(matrix.os, 'macos')
         run: |
@@ -153,7 +153,7 @@ jobs:
           rustup target add aarch64-apple-darwin
 
       - name: Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -206,7 +206,7 @@ jobs:
           esac
       - name: Artifacts
         if: "matrix.features == 'default' || matrix.features == 'all'"
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.os }}-${{ matrix.rust_toolchain }}-${{ steps.artifact_suffix.outputs.suffix }}
           retention-days: 60

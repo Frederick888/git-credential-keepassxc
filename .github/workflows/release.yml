@@ -16,7 +16,7 @@ jobs:
       release_id: ${{ steps.create_release.outputs.id }}
       is_pre: ${{ steps.release_type.outputs.is_pre }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Conventional Commit Changelog
@@ -62,7 +62,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         features: [default, all]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install Rust Toolchain
         id: rust_toolchain
         uses: dtolnay/rust-toolchain@master
@@ -70,7 +70,7 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
       - name: Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -103,14 +103,14 @@ jobs:
           - [all]
           - [notification, encryption, yubikey]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install Rust Toolchain
         id: rust_toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
       - name: Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -137,7 +137,7 @@ jobs:
         features: [default, all]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install macOS Dependencies
         if: contains(matrix.os, 'macos')
@@ -160,7 +160,7 @@ jobs:
           rustup target add aarch64-apple-darwin
 
       - name: Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
