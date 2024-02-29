@@ -227,7 +227,7 @@ jobs:
         shell: bash
         run: |
           zip -j "./${{ matrix.os }}-${{ steps.artifact_suffix.outputs.suffix }}.zip" target/release/git-credential-keepassxc target/release/git-credential-keepassxc.exe
-          echo "filename=${{ matrix.os }}-${{ steps.artifact_suffix.outputs.suffix }}" >> $GITHUB_OUTPUT
+          echo "filename=git-credential-keepassxc_${{ matrix.os }}-${{ steps.artifact_suffix.outputs.suffix }}" >> $GITHUB_OUTPUT
       - name: "Hash (Unix)"
         if: "!contains(matrix.os, 'windows')"
         run: |
