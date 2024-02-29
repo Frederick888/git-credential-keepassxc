@@ -59,7 +59,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os:
+          - ubuntu-20.04
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
         features: [default, all]
     steps:
       - uses: actions/checkout@v4
@@ -97,7 +101,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os:
+          - ubuntu-20.04
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
         features:
           - [default]
           - [all]
@@ -133,7 +141,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os:
+          - ubuntu-20.04
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
         features: [default, all]
 
     steps:
