@@ -22,7 +22,7 @@ yubikey = ["yubico_manager", "encryption"]
 [dependencies]
 aes-gcm = { version = "0.10.1", default-features = false }
 anyhow = "1.0.28"
-base64 = "0.21.0"
+base64 = "0.22.1"
 clap = { version = "3.1.18", features = ["derive"] }
 crypto_box = "0.9.1"
 directories-next = "2.0.0"
@@ -35,7 +35,7 @@ serde_json = "1.0.52"
 slog = "2.5.2"
 slog-term = "2.5.0"
 strum = { version = "0.26.1", features = ["derive"] }
-sysinfo = "0.30.5"
+sysinfo = "0.31.2"
 tabwriter = "1.2.1"
 which = "6.0.0"
 yubico_manager = { version = "0.9.0", optional = true }
@@ -47,6 +47,6 @@ prctl = "1.0.0"
 named_pipe = "0.4.1"
 
 [dev-dependencies]
-mockall = "0.12.0"
+mockall = "0.13.0"
 sha-1 = "0.10.0"
 hmac = "0.12.0"

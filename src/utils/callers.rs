@@ -5,7 +5,9 @@ use anyhow::{anyhow, Result};
 #[cfg(unix)]
 use std::ops::Deref;
 use std::path::PathBuf;
-use sysinfo::{get_current_pid, ProcessRefreshKind, RefreshKind, System, UpdateKind};
+use sysinfo::{
+    get_current_pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System, UpdateKind,
+};
 
 #[derive(Debug)]
 pub struct CurrentCaller {
@@ -32,7 +34,7 @@ impl CurrentCaller {
                     .with_exe(UpdateKind::OnlyIfNotSet),
             ),
         );
-        system.refresh_process(pid);
+        system.refresh_processes(ProcessesToUpdate::Some(&[pid]));
         let proc = system
             .process(pid)
             .ok_or_else(|| anyhow!("Failed to retrieve information of current process"))?;
@@ -41,7 +43,7 @@ impl CurrentCaller {
             .parent()
             .ok_or_else(|| anyhow!("Failed to retrieve parent PID"))?;
         info!("PPID: {}", ppid);
-        system.refresh_process(ppid);
+        system.refresh_processes(ProcessesToUpdate::Some(&[ppid]));
         let pproc = system
             .process(ppid)
             .ok_or_else(|| anyhow!("Failed to retrieve information of parent process"))?;
