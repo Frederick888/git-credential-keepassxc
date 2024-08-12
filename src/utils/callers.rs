@@ -10,6 +10,7 @@ use sysinfo::{get_current_pid, ProcessRefreshKind, RefreshKind, System, UpdateKi
 #[derive(Debug)]
 pub struct CurrentCaller {
     pub path: PathBuf,
+    #[allow(dead_code)]
     pub pid: u32,
     #[cfg(unix)]
     pub uid: u32,
