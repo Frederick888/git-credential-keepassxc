@@ -1,3 +1,10 @@
+<a name="v0.14.1"></a>
+## v0.14.1  (2024-08-12)
+
+Upgrade `time` crate to fix build issues. Kudos to [@fgaz](https://github.com/fgaz) [#97](https://github.com/Frederick888/git-credential-keepassxc/pull/97).
+
+No functional changes.
+
 <a name="v0.14.0"></a>
 ## v0.14.0 (2023-10-24)
 
