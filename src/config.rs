@@ -766,13 +766,15 @@ impl MockYubiKeyTrait {
     }
 }
 
+#[allow(dead_code)]
 #[cfg(feature = "yubikey")]
 struct YubiKey {
     yubi: Yubico,
     device: yubico_manager::Device,
 }
 
-#[cfg(all(not(test), feature = "yubikey"))]
+#[allow(dead_code)]
+#[cfg(feature = "yubikey")]
 impl YubiKey {
     fn new() -> Result<Self> {
         let mut yubi = Yubico::new();
@@ -781,6 +783,7 @@ impl YubiKey {
     }
 }
 
+#[allow(dead_code)]
 #[cfg(feature = "yubikey")]
 impl YubiKeyTrait for YubiKey {
     fn read_serial_number(&mut self) -> Result<u32, YubicoError> {
