@@ -25,6 +25,7 @@ pub fn get_socket_path() -> Result<PathBuf> {
         Box::new(LinuxSocketPath272),
         Box::new(WindowsSocketPath262),
         Box::new(WindowsSocketPathNatMsg),
+        Box::new(FreeBSDSocketPath274),
     ];
     let winner = candidates
         .iter()
@@ -48,6 +49,23 @@ pub fn get_socket_path() -> Result<PathBuf> {
 trait SocketPath {
     fn get_path(&self) -> Result<PathBuf>;
     fn matches_os(&self) -> bool;
+}
+
+struct FreeBSDSocketPath274;
+impl SocketPath for FreeBSDSocketPath274 {
+    fn get_path(&self) -> Result<PathBuf> {
+        let base_dirs = directories_next::BaseDirs::new()
+            .ok_or_else(|| anyhow!("Failed to initialise base_dirs"))?;
+        let result = base_dirs
+            .runtime_dir()
+            .ok_or_else(|| anyhow!("Failed to locate runtime_dir automatically"))?
+            .join(KEEPASS_SOCKET_NAME);
+        exist_or_error(result)
+    }
+
+    fn matches_os(&self) -> bool {
+        cfg!(target_os = "freebsd")
+    }
 }
 
 struct LinuxSocketPathLegacy;
