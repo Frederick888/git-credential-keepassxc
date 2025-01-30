@@ -81,7 +81,7 @@ fn associated_databases<T: AsRef<str>>(
                     }
                 };
                 if let Ok((ref taso_resp, _)) = taso_resp {
-                    success = taso_resp.success.as_ref().map_or(false, |s| *s.as_ref());
+                    success = taso_resp.success.as_ref().is_some_and(|s| *s.as_ref());
                 }
                 if taso_resp.is_err() || !success {
                     warn!(
