@@ -435,13 +435,13 @@ impl Config {
     }
 
     #[cfg(not(feature = "encryption"))]
-    pub fn get_encryption_key(&self) -> Result<std::cell::Ref<Option<AesKey>>> {
+    pub fn get_encryption_key(&self) -> Result<std::cell::Ref<'_, Option<AesKey>>> {
         error!("Enable encryption to use this feature");
         Err(anyhow!("Encryption is not enabled in this build"))
     }
 
     #[cfg(feature = "encryption")]
-    pub fn get_encryption_key(&self) -> Result<std::cell::Ref<Option<AesKey>>> {
+    pub fn get_encryption_key(&self) -> Result<std::cell::Ref<'_, Option<AesKey>>> {
         if self.encryption_key.borrow().is_some() {
             return Ok(self.encryption_key.borrow());
         }
@@ -631,7 +631,7 @@ impl Encryption {
     }
 
     #[cfg(feature = "encryption")]
-    fn get_response(&self) -> Result<std::cell::Ref<Option<AesKey>>> {
+    fn get_response(&self) -> Result<std::cell::Ref<'_, Option<AesKey>>> {
         match self {
             #[cfg(not(feature = "yubikey"))]
             Encryption::ChallengeResponse { .. } => {

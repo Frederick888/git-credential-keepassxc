@@ -52,11 +52,8 @@ impl CurrentCaller {
             .ok_or_else(|| anyhow!("Failed to determine parent process path"))?;
         info!("Parent process path: {}", ppath.to_string_lossy());
         let canonical_ppath = ppath.canonicalize();
-        if canonical_ppath.is_ok() {
-            info!(
-                "Canonical parent process path: {}",
-                canonical_ppath.as_ref().unwrap().to_string_lossy()
-            );
+        if let Ok(p) = &canonical_ppath {
+            info!("Canonical parent process path: {}", p.to_string_lossy());
         } else {
             warn!("Failed to determine canonical parent process path");
         }

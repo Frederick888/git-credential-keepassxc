@@ -74,20 +74,17 @@ where
             );
         };
         response_wrapper.log();
-        if response_wrapper.message.is_some() && response_wrapper.nonce.is_some() {
-            let (message, nonce) = (
-                response_wrapper.message.unwrap(),
-                response_wrapper.nonce.unwrap(),
-            );
-            let decrypted_response_json = to_decrypted_json(message, nonce)?;
-            let response: R = serde_json::from_str(&decrypted_response_json)?;
-            Ok((response, decrypted_response_json))
-        } else {
-            Err(KeePassError {
+        match (&response_wrapper.message, &response_wrapper.nonce) {
+            (Some(message), Some(nonce)) => {
+                let decrypted_response_json = to_decrypted_json(message, nonce)?;
+                let response: R = serde_json::from_str(&decrypted_response_json)?;
+                Ok((response, decrypted_response_json))
+            }
+            _ => Err(KeePassError {
                 message: response_wrapper.error_message(),
                 response: response_wrapper,
             }
-            .into())
+            .into()),
         }
     }
 
@@ -608,7 +605,7 @@ impl GetDatabaseGroupsResponse {
         &self.groups.groups
     }
 
-    pub fn get_flat_groups(&self) -> Vec<FlatGroup> {
+    pub fn get_flat_groups(&self) -> Vec<FlatGroup<'_>> {
         self.get_groups()
             .iter()
             .map(|g| g.get_flat_groups(vec![]))
