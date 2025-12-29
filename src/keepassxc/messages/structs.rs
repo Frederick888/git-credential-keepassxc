@@ -608,7 +608,7 @@ impl GetDatabaseGroupsResponse {
         &self.groups.groups
     }
 
-    pub fn get_flat_groups(&self) -> Vec<FlatGroup> {
+    pub fn get_flat_groups(&self) -> Vec<FlatGroup<'_>> {
         self.get_groups()
             .iter()
             .map(|g| g.get_flat_groups(vec![]))
