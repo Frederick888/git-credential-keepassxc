@@ -45,6 +45,7 @@ prctl = "1.0.0"
 
 [target.'cfg(windows)'.dependencies]
 named_pipe = "0.4.1"
+windows-sys = { version = "0.61.2", features = ["Win32_Globalization"] }
 
 [dev-dependencies]
 mockall = "0.13.0"

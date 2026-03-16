@@ -199,8 +199,50 @@ impl SocketPath for WindowsSocketPath262 {
 
     #[cfg(target_os = "windows")]
     fn get_path(&self) -> Result<PathBuf> {
-        let pipe_with_username = KEEPASS_SOCKET_NAME.to_owned() + "_" + &std::env::var("USERNAME")?;
-        let result = PathBuf::from(format!(r#"\\.\pipe\{pipe_with_username}"#));
+        use std::sync::OnceLock;
+
+        const CORRUPTED_CHAR: char = '\u{FFFD}';
+
+        static CACHED_REPLACEMENT: OnceLock<String> = OnceLock::new();
+        let get_replacement_string = || {
+            // Lazily compute due to most of environments being ASCII-based
+            CACHED_REPLACEMENT.get_or_init(|| {
+                use windows_sys::Win32::Globalization;
+                let max_char_size = unsafe {
+                    let acp = Globalization::GetACP();
+                    let mut cp_info = std::mem::zeroed::<Globalization::CPINFO>();
+                    if Globalization::GetCPInfo(acp, &mut cp_info) == 0 {
+                        1
+                    } else {
+                        cp_info.MaxCharSize as usize
+                    }
+                };
+                std::iter::repeat_n(CORRUPTED_CHAR, max_char_size).collect()
+            })
+        };
+
+        // KeePassXC will replace non-ASCII characters with "U+FFFD"s
+        let username = std::env::var("USERNAME")?;
+        let username_corrupted = {
+            let mut buffer = String::with_capacity(username.len() * 2); 
+            for c in username.chars() {
+                if matches!(c, ' '..='~') { // is_ascii_graphic or ' '
+                    buffer.push(c);
+                } else if c.is_ascii_control() {
+                    buffer.push(CORRUPTED_CHAR) // 1 char for ASCII control chars
+                } else {
+                    // For non-ASCII chars, the number of "U+FFFD"s replaced
+                    // depends on the MaxCharSize of CPINFO
+                    buffer.push_str(get_replacement_string());
+                }
+            }
+            buffer
+        };
+
+        // Construct the pipe path according to
+        // https://github.com/keepassxreboot/keepassxc/blob/develop/src/browser/BrowserShared.cpp
+        let path_string = format!(r"\\.\pipe\{KEEPASS_SOCKET_NAME}_{username_corrupted}");
+        let result = PathBuf::from(path_string);
         connectable_or_error(result)
     }
 
