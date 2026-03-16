@@ -199,41 +199,34 @@ impl SocketPath for WindowsSocketPath262 {
 
     #[cfg(target_os = "windows")]
     fn get_path(&self) -> Result<PathBuf> {
-        use std::sync::OnceLock;
-
         const CORRUPTED_CHAR: char = '\u{FFFD}';
 
-        static CACHED_REPLACEMENT: OnceLock<String> = OnceLock::new();
-        let get_replacement_string = || {
-            // Lazily compute due to most of environments being ASCII-based
-            CACHED_REPLACEMENT.get_or_init(|| {
-                use windows_sys::Win32::Globalization;
-                let max_char_size = unsafe {
-                    let acp = Globalization::GetACP();
-                    let mut cp_info = std::mem::zeroed::<Globalization::CPINFO>();
-                    if Globalization::GetCPInfo(acp, &mut cp_info) == 0 {
-                        1
-                    } else {
-                        cp_info.MaxCharSize as usize
-                    }
-                };
-                std::iter::repeat_n(CORRUPTED_CHAR, max_char_size).collect()
-            })
+        let max_char_size = unsafe {
+            use windows_sys::Win32::Globalization;
+
+            let acp = Globalization::GetACP();
+            let mut cp_info = std::mem::zeroed::<Globalization::CPINFO>();
+            if Globalization::GetCPInfo(acp, &mut cp_info) == 0 {
+                1
+            } else {
+                cp_info.MaxCharSize as usize
+            }
         };
+        let replacement: String = std::iter::repeat_n(CORRUPTED_CHAR, max_char_size).collect();
 
         // KeePassXC will replace non-ASCII characters with "U+FFFD"s
         let username = std::env::var("USERNAME")?;
         let username_corrupted = {
-            let mut buffer = String::with_capacity(username.len() * 2); 
+            let mut buffer = String::with_capacity(username.len() * max_char_size); 
             for c in username.chars() {
-                if matches!(c, ' '..='~') { // is_ascii_graphic or ' '
+                if c.is_ascii_graphic() || c == ' ' {
                     buffer.push(c);
-                } else if c.is_ascii_control() {
+                } else if c.is_ascii_control() || max_char_size == 1 {
                     buffer.push(CORRUPTED_CHAR) // 1 char for ASCII control chars
                 } else {
                     // For non-ASCII chars, the number of "U+FFFD"s replaced
                     // depends on the MaxCharSize of CPINFO
-                    buffer.push_str(get_replacement_string());
+                    buffer.push_str(&replacement);
                 }
             }
             buffer
