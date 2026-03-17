@@ -294,7 +294,7 @@ mod test_c_getenv {
         }
     }
 
-    fn put_env(name: &str, value: &str) -> i32 {
+    fn c_putenv(name: &str, value: &str) -> i32 {
         extern "C" {
             fn _putenv(envstring: *const std::os::raw::c_char) -> std::os::raw::c_int;
         }
@@ -371,7 +371,7 @@ mod test_c_getenv {
             unsafe {
                 SetConsoleCP(cp);
             }
-            put_env(TEST_ENV_VAR_NAME, input);
+            c_putenv(TEST_ENV_VAR_NAME, input);
 
             // The output should not be affected by the current code page
             for codepage in &unique_codepages {
