@@ -81,6 +81,8 @@ impl CurrentCaller {
         {
             return false;
         }
+        // TODO: migrate to let-chain after upgrading to Rust 2024
+        #[allow(clippy::unnecessary_unwrap)]
         if caller.canonicalize && self.canonical_path.is_some() {
             let canonical_caller = PathBuf::from(&caller.path).canonicalize();
             if canonical_caller

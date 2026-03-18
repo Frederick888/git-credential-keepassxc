@@ -577,6 +577,8 @@ where
     if login_entries.is_empty() {
         return Err(anyhow!("No matching logins found"));
     }
+    // TODO: migrate to let-chain after upgrading to Rust 2024
+    #[allow(clippy::unnecessary_unwrap)]
     if login_entries.len() > 1 && git_req.username.is_some() {
         let username = git_req.username.as_ref().unwrap();
         let login_entries_name_matches: Vec<_> = login_entries
