@@ -199,8 +199,17 @@ impl SocketPath for WindowsSocketPath262 {
 
     #[cfg(target_os = "windows")]
     fn get_path(&self) -> Result<PathBuf> {
-        let pipe_with_username = KEEPASS_SOCKET_NAME.to_owned() + "_" + &std::env::var("USERNAME")?;
-        let result = PathBuf::from(format!(r#"\\.\pipe\{pipe_with_username}"#));
+        // KeePassXC uses Qt's `qgetenv(...)`,
+        // which based on C stdlib's `::getenv(...)` to get USERNAME,
+        // It returns different results between Rust's `std::env::var(...)`.
+        let username_byte = c_getenv("USERNAME")
+            .ok_or_else(|| anyhow!("Failed to get USERNAME from environment"))?;
+        let username = String::from_utf8_lossy(&username_byte);
+
+        // Construct the pipe path according to
+        // https://github.com/keepassxreboot/keepassxc/blob/develop/src/browser/BrowserShared.cpp
+        let path_string = format!(r"\\.\pipe\{KEEPASS_SOCKET_NAME}_{username}");
+        let result = PathBuf::from(path_string);
         connectable_or_error(result)
     }
 
@@ -227,4 +236,23 @@ fn connectable_or_error(path: PathBuf) -> Result<PathBuf> {
         Ok(_) => Ok(path),
         Err(e) => Err(anyhow!(e)),
     }
+}
+
+#[cfg(target_os = "windows")]
+fn c_getenv(name: &str) -> Option<Vec<u8>> {
+    use std::ffi::{CStr, CString};
+    use std::os::raw::c_char;
+
+    extern "C" {
+        fn getenv(name: *const c_char) -> *const c_char;
+    }
+
+    let c_name = CString::new(name).ok()?;
+    let ptr = unsafe { getenv(c_name.as_ptr()) };
+    if ptr.is_null() {
+        return None;
+    }
+
+    let c_str = unsafe { CStr::from_ptr(ptr) };
+    Some(c_str.to_bytes().to_vec())
 }
