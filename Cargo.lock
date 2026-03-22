@@ -760,7 +760,7 @@ dependencies = [
 
 [[package]]
 name = "git-credential-keepassxc"
-version = "0.14.1"
+version = "0.14.2"
 dependencies = [
  "aes-gcm",
  "anyhow",

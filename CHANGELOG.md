@@ -1,3 +1,13 @@
+<a name="v0.14.2"></a>
+## v0.14.2  (2026-03-22)
+
+
+#### Bug Fixes
+
+*   Support non-ASCII usernames in Windows pipe path (#112) ([f60788c6](https://github.com/Frederick888/git-credential-keepassxc/commit/f60788c62f640bcbb0bed39878a0491e7203be76))
+
+
+
 <a name="v0.14.1"></a>
 ## v0.14.1  (2024-08-12)
 
