@@ -70,7 +70,7 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
       - name: Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -111,7 +111,7 @@ jobs:
         with:
           toolchain: stable
       - name: Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -161,7 +161,7 @@ jobs:
           rustup target add aarch64-apple-darwin
 
       - name: Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
