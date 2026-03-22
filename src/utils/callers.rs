@@ -28,13 +28,13 @@ impl CurrentCaller {
             get_current_pid().map_err(|s| anyhow!("Failed to retrieve current PID: {}", s))?;
         info!("PID: {}", pid);
         let mut system = System::new_with_specifics(
-            RefreshKind::new().with_processes(
-                ProcessRefreshKind::new()
+            RefreshKind::nothing().with_processes(
+                ProcessRefreshKind::nothing()
                     .with_user(UpdateKind::OnlyIfNotSet)
                     .with_exe(UpdateKind::OnlyIfNotSet),
             ),
         );
-        system.refresh_processes(ProcessesToUpdate::Some(&[pid]));
+        system.refresh_processes(ProcessesToUpdate::Some(&[pid]), false);
         let proc = system
             .process(pid)
             .ok_or_else(|| anyhow!("Failed to retrieve information of current process"))?;
@@ -43,7 +43,7 @@ impl CurrentCaller {
             .parent()
             .ok_or_else(|| anyhow!("Failed to retrieve parent PID"))?;
         info!("PPID: {}", ppid);
-        system.refresh_processes(ProcessesToUpdate::Some(&[ppid]));
+        system.refresh_processes(ProcessesToUpdate::Some(&[ppid]), false);
         let pproc = system
             .process(ppid)
             .ok_or_else(|| anyhow!("Failed to retrieve information of parent process"))?;
