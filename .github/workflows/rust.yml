@@ -206,7 +206,7 @@ jobs:
           esac
       - name: Artifacts
         if: "matrix.features == 'default' || matrix.features == 'all'"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.os }}-${{ matrix.rust_toolchain }}-${{ steps.artifact_suffix.outputs.suffix }}
           retention-days: 60
