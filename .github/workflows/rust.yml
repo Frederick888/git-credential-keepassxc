@@ -44,7 +44,7 @@ jobs:
             features: all
             experimental: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install Rust Toolchain
         id: rust_toolchain
         uses: dtolnay/rust-toolchain@master
@@ -86,7 +86,7 @@ jobs:
           - [all]
           - [notification, encryption, yubikey]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install Rust Toolchain
         id: rust_toolchain
         uses: dtolnay/rust-toolchain@master
@@ -134,7 +134,7 @@ jobs:
             features: all
             experimental: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install macOS Dependencies
         if: contains(matrix.os, 'macos')
         run: |
