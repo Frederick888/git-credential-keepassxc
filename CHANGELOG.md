@@ -1,6 +1,7 @@
 <a name="v0.14.3"></a>
 ## v0.14.3  (2026-05-17)
 
+Dependency bumps only. Plus addresses the missing Windows artefacts in the v0.14.2 release.
 
 
 
