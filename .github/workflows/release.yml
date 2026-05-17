@@ -246,7 +246,7 @@ jobs:
   publish_release:
     runs-on: ubuntu-latest
     needs: [create_release, lint, test, build]
-    if: ${{ needs.create_release.outputs.is_pre == 'false' }}
+    # if: ${{ needs.create_release.outputs.is_pre == 'false' }}
     steps:
       - name: Publish Release
         uses: ncipollo/release-action@v1
