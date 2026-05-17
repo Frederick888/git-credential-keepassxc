@@ -249,8 +249,11 @@ jobs:
     if: ${{ needs.create_release.outputs.is_pre == 'false' }}
     steps:
       - name: Publish Release
-        uses: eregon/publish-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: ncipollo/release-action@v1
         with:
-          release_id: ${{ needs.create_release.outputs.release_id }}
+          allowUpdates: true
+          updateOnlyUnreleased: true
+          draft: false
+          omitPrereleaseDuringUpdate: true
+          omitBodyDuringUpdate: true
+          token: ${{ secrets.GITHUB_TOKEN }}
