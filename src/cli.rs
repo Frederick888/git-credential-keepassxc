@@ -332,14 +332,14 @@ pub struct SubCallerAddArgs {
     /// Absolute path of the caller executable
     #[clap(value_parser)]
     pub path: String,
-    #[clap(long, value_parser, value_parser)]
+    #[clap(long, value_parser)]
     /// UID of the caller process (ignored under Windows)
     pub uid: Option<u32>,
     /// GID of the caller process (ignored under Windows)
-    #[clap(long, value_parser, value_parser)]
+    #[clap(long, value_parser)]
     pub gid: Option<u32>,
     /// Additionally compare canonical caller paths during verification
-    #[clap(long, value_parser, value_parser)]
+    #[clap(long, value_parser)]
     pub canonicalize: bool,
     /// Encrypt caller profiles.
     /// Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
