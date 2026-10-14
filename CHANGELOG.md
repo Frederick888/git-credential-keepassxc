@@ -1,3 +1,14 @@
+<a name="v0.14.4"></a>
+## v0.14.4  (2026-10-14)
+
+
+#### Bug Fixes
+
+*   Strip UTF8 BOM from inputs ([a87061b6](https://github.com/Frederick888/git-credential-keepassxc/commit/a87061b6e59b89e981bde2ddb010b0869b54094c))
+*   Handle CRLF inputs ([a2d47b48](https://github.com/Frederick888/git-credential-keepassxc/commit/a2d47b48e727e726b6bd6eef3d2a9490aa344064))
+
+
+
 <a name="v0.14.3"></a>
 ## v0.14.3  (2026-05-17)
 
