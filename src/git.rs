@@ -68,7 +68,7 @@ macro_rules! message_from_to_string {
             type Err = GitMessageParsingError;
 
             fn from_str(s: &str) -> Result<Self, Self::Err> {
-                let pairs: Vec<_> = s.split("\n").collect();
+                let pairs: Vec<_> = s.lines().collect();
                 let mut msg = $name::default();
                 for pair in pairs {
                     if pair.len() == 0 {
@@ -206,5 +206,15 @@ mod tests {
             "url=http://example.com\n\n".to_string(),
             message.to_string()
         );
+    }
+
+    #[test]
+    fn test_04_crlf_input() {
+        let string = "url=http://example.com\r\n".to_owned();
+        let message = GitCredentialMessage::from_str(string.as_str()).unwrap();
+        assert!(message.url.is_some());
+        assert_eq!(message.url.as_ref().unwrap().as_str(), "http://example.com");
+        // Outputs always use LF. See https://github.com/Frederick888/git-credential-keepassxc/issues/109#issuecomment-5470777140
+        assert_eq!("url=http://example.com\n\n", message.to_string());
     }
 }
