@@ -146,6 +146,7 @@ mod tests {
             uid: None,
             gid: None,
             canonicalize: false,
+            notify: true,
         };
         assert!(current_caller.matches(&caller_matches));
 
@@ -154,6 +155,7 @@ mod tests {
             uid: None,
             gid: None,
             canonicalize: false,
+            notify: true,
         };
         assert!(!current_caller.matches(&caller_mismatches));
     }
@@ -174,6 +176,7 @@ mod tests {
             uid: Some(1),
             gid: Some(1),
             canonicalize: false,
+            notify: true,
         };
         assert!(current_caller.matches(&caller_matches));
 
@@ -182,6 +185,7 @@ mod tests {
             uid: Some(2),
             gid: Some(1),
             canonicalize: false,
+            notify: true,
         };
         assert!(!current_caller.matches(&caller_mismatches));
 
@@ -190,6 +194,7 @@ mod tests {
             uid: Some(1),
             gid: Some(2),
             canonicalize: false,
+            notify: true,
         };
         assert!(!current_caller.matches(&caller_mismatches));
     }
@@ -208,6 +213,7 @@ mod tests {
             uid: Some(1),
             gid: Some(1),
             canonicalize: false,
+            notify: true,
         };
         assert!(current_caller.matches(&caller_matches));
     }

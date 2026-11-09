@@ -341,6 +341,9 @@ pub struct SubCallerAddArgs {
     /// Additionally compare canonical caller paths during verification
     #[clap(long, value_parser)]
     pub canonicalize: bool,
+    /// Do not show desktop notifications for credential requests from this caller
+    #[clap(long, value_parser)]
+    pub no_notify: bool,
     /// Encrypt caller profiles.
     /// Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
     /// Leave empty ("") to use existing encryption profile in configuration file.
@@ -360,6 +363,9 @@ pub struct SubCallerMeArgs {
     /// Additionally compare canonical caller paths during verification
     #[clap(long, value_parser)]
     pub canonicalize: bool,
+    /// Do not show desktop notifications for credential requests from this caller
+    #[clap(long, value_parser)]
+    pub no_notify: bool,
     /// Encrypt caller profiles.
     /// Only YubiKey challenge-response is supported at the moment (challenge-response[:SLOT[:CHALLENGE]], by default Slot 2 is used with a randomly generated challenge).
     /// Leave empty ("") to use existing encryption profile in configuration file.

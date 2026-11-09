@@ -312,6 +312,7 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &cli::SubCallerArgs) -> Result<(
                 uid: caller_add_args.uid,
                 gid: caller_add_args.gid,
                 canonicalize: caller_add_args.canonicalize,
+                notify: !caller_add_args.no_notify,
             };
             if let Some(ref encryption) = caller_add_args.encrypt {
                 // this will error if an existing encryption profile has already been configured for the
@@ -331,10 +332,14 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &cli::SubCallerArgs) -> Result<(
                     caller_me_args.no_uid,
                     caller_me_args.no_uid,
                     caller_me_args.canonicalize,
+                    !caller_me_args.no_notify,
                 );
                 #[cfg(windows)]
-                let caller =
-                    Caller::from_current_caller(&current_caller, caller_me_args.canonicalize);
+                let caller = Caller::from_current_caller(
+                    &current_caller,
+                    caller_me_args.canonicalize,
+                    !caller_me_args.no_notify,
+                );
                 println!(
                     "Gonna save current caller to allowed callers list:\n{}",
                     serde_json::to_string_pretty(&caller)?
@@ -358,7 +363,8 @@ fn caller<T: AsRef<Path>>(config_path: T, args: &cli::SubCallerArgs) -> Result<(
     }
 }
 
-fn verify_caller(config: &Config) -> Result<Option<CurrentCaller>> {
+/// Returns the current caller and whether notifications should be shown for it
+fn verify_caller(config: &Config) -> Result<Option<(CurrentCaller, bool)>> {
     if config.count_callers() == 0
         && (cfg!(not(feature = "strict-caller")) || config.count_databases() == 0)
     {
@@ -372,10 +378,11 @@ fn verify_caller(config: &Config) -> Result<Option<CurrentCaller>> {
     }
     let current_caller = CurrentCaller::new()?;
     let callers = config.get_callers()?;
-    let matching_callers = callers
+    let matching_callers: Vec<_> = callers
         .iter()
-        .filter(|caller| current_caller.matches(caller));
-    if matching_callers.count() == 0 {
+        .filter(|caller| current_caller.matches(caller))
+        .collect();
+    if matching_callers.is_empty() {
         if config.count_callers() == 0 && cfg!(feature = "strict-caller") {
             warn!("No caller profiles defined. You must configure callers before databases when strict-caller feature is enabled");
         }
@@ -397,7 +404,9 @@ fn verify_caller(config: &Config) -> Result<Option<CurrentCaller>> {
         );
         Err(anyhow!(error_message))
     } else {
-        Ok(Some(current_caller))
+        // notify unless every matching profile opts out
+        let notify = matching_callers.iter().any(|caller| caller.notify);
+        Ok(Some((current_caller, notify)))
     }
 }
 
@@ -517,7 +526,7 @@ where
 
     #[cfg(feature = "notification")]
     {
-        if let Some(current_caller) = _current_caller {
+        if let Some((current_caller, true)) = _current_caller {
             use notify_rust::{Notification, Timeout};
             let notification = Notification::new()
                 .summary("Credential request")
@@ -1054,5 +1063,49 @@ mod tests {
         config.add_database(database, false).unwrap();
 
         assert!(verify_caller(&config).is_ok());
+    }
+
+    fn config_with_current_caller_notify(notify_flags: &[bool]) -> Config {
+        let current_caller = CurrentCaller::new().unwrap();
+        let mut config = Config::new();
+        for &notify in notify_flags {
+            let caller = Caller {
+                path: current_caller.path.to_string_lossy().into_owned(),
+                notify,
+                ..Default::default()
+            };
+            config.add_caller(caller, false).unwrap();
+        }
+        config
+    }
+
+    #[test]
+    fn test_03_verify_caller_notifies_by_default() {
+        let config = config_with_current_caller_notify(&[true]);
+        let (_, notify) = verify_caller(&config).unwrap().unwrap();
+        assert!(notify);
+    }
+
+    #[test]
+    fn test_04_verify_caller_does_not_notify_when_disabled() {
+        let config = config_with_current_caller_notify(&[false]);
+        let (_, notify) = verify_caller(&config).unwrap().unwrap();
+        assert!(!notify);
+    }
+
+    #[test]
+    fn test_05_verify_caller_notifies_if_any_matching_profile_enables_it() {
+        let config = config_with_current_caller_notify(&[false, true]);
+        let (_, notify) = verify_caller(&config).unwrap().unwrap();
+        assert!(notify);
+    }
+
+    #[test]
+    fn test_06_caller_notify_defaults_to_true_when_missing_from_json() {
+        let caller: Caller = serde_json::from_str(r#"{"path": "/usr/bin/git"}"#).unwrap();
+        assert!(caller.notify);
+        let caller: Caller =
+            serde_json::from_str(r#"{"path": "/usr/bin/git", "notify": false}"#).unwrap();
+        assert!(!caller.notify);
     }
 }

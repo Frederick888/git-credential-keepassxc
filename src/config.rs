@@ -559,7 +559,11 @@ fn default_as_false() -> bool {
     false
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+fn default_as_true() -> bool {
+    true
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Caller {
     pub path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -568,6 +572,21 @@ pub struct Caller {
     pub gid: Option<u32>,
     #[serde(default = "default_as_false")]
     pub canonicalize: bool,
+    /// Show desktop notifications on credential requests from this caller
+    #[serde(default = "default_as_true")]
+    pub notify: bool,
+}
+
+impl Default for Caller {
+    fn default() -> Self {
+        Self {
+            path: String::new(),
+            uid: None,
+            gid: None,
+            canonicalize: false,
+            notify: true,
+        }
+    }
 }
 
 impl Caller {
@@ -577,6 +596,7 @@ impl Caller {
         no_uid: bool,
         no_gid: bool,
         canonicalize: bool,
+        notify: bool,
     ) -> Self {
         Self {
             path: String::from(current_caller.path.to_string_lossy()),
@@ -591,16 +611,22 @@ impl Caller {
                 Some(current_caller.gid)
             },
             canonicalize,
+            notify,
         }
     }
 
     #[cfg(windows)]
-    pub fn from_current_caller(current_caller: &CurrentCaller, canonicalize: bool) -> Self {
+    pub fn from_current_caller(
+        current_caller: &CurrentCaller,
+        canonicalize: bool,
+        notify: bool,
+    ) -> Self {
         Self {
             path: String::from(current_caller.path.to_string_lossy()),
             uid: None,
             gid: None,
             canonicalize,
+            notify,
         }
     }
 }
