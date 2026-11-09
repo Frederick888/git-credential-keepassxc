@@ -73,11 +73,14 @@ Gonna save current caller to allowed callers list:
   "path": "/usr/bin/zsh",
   "uid": 1000,
   "gid": 1000,
-  "canonicalize": false
+  "canonicalize": false,
+  "notify": true
 }
 Press Enter to continue...
 # then add Git
 $ git-credential-keepassxc caller add --uid "$(id -u)" --gid "$(id -g)" "$(command -v git)"
+# add --no-notify to suppress desktop notifications (requires the `notification` feature) for a caller
+# this sets "notify": false in the caller profile
 # you may also need to add other executables in /usr/lib/git-core/
 # run `git config --global --replace-all credential.helper 'keepassxc -vv --git-groups'` to enable logs if any Git subcommand is blocked
 
